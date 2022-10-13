@@ -48,6 +48,7 @@ class ApplicationTest extends LogTestCase
         $configProp->setAccessible(true);
 
         $app = new Application();
+        $app->config()->build();
         $input = $inputProp->getValue($app);
         $this->assertInstanceOf('\Symfony\Component\Console\Input\StringInput', $input);
         $output = $outputProp->getValue($app);
@@ -62,6 +63,7 @@ class ApplicationTest extends LogTestCase
         $outputArg = new \Symfony\Component\Console\Output\ConsoleOutput();
         $schema    = new AppTestConfigSchema();
         $app = new Application($inputArg, $outputArg, $schema);
+        $app->config()->build();
         $this->assertEquals($inputArg, $inputProp->getValue($app));
         $this->assertEquals($outputArg, $outputProp->getValue($app));
         $this->assertEquals(AppTestConfigSchema::DUMPED_SCHEMA, $app->config()->dumpSchema());
