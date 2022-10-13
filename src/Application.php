@@ -146,7 +146,7 @@ class Application
         );
 
         $verbosity = $this->getVerbosity($this->input);
-        Robo::addShared($this->container, 'verbosity', $verbosity );
+        Robo::addShared($this->container, 'verbosity', $verbosity);
 
         if (!$this->container->has('roboLogger')) {
             $this->container->extend('logger')->setAlias('roboLogger');
@@ -154,7 +154,7 @@ class Application
         $logger = $this->buildLogger();
 
         // didn't find a way to replace a service => rename old and create new
-        Robo::addShared($this->container, 'logger', $logger );
+        Robo::addShared($this->container, 'logger', $logger);
         Robo::finalizeContainer($this->container);
     }
     /**
