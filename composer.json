@@ -12,18 +12,6 @@
     }
 
   ],
-  "repositories" : {
-    "local-appli" : {
-      "type": "path",
-      "url": "/home/jgervais01/dev/libs/testLogger",
-      "options": {
-        "versions": {
-          "dgfip-si1/test-logger": "1.0-alpha3"
-        }
-      }
-    }
-  },
-
   "keywords" : [ "command", "config" ],
   "require" : {
     "php" : ">=7.4",
