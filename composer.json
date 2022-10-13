@@ -14,7 +14,7 @@
   ],
   "keywords" : [ "command", "config" ],
   "require" : {
-    "php" : ">=7.4",
+    "php" : ">=8.1",
     "composer/composer" : "~2.1",
     "consolidation/robo" : ">1",
     "dgfip-si1/config-helper": ">=1",
