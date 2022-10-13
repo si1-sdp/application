@@ -1,0 +1,15 @@
+#!/usr/bin/env php
+<?php
+
+use \DgfipSI1\Application\Application;
+$classLoader = require __DIR__.'/vendor/autoload.php';
+
+$input = new \Symfony\Component\Console\Input\ArgvInput($argv);
+$app = new Application($input);
+$app->setApplicationName("Hello World");
+$app->setApplicationVersion("1.0");
+$app->setRoboCommands([ \hello_world\RoboFile::class]);
+$app->finalize();
+$statusCode = $app->run(); 
+
+exit($statusCode);

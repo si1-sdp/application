@@ -1,0 +1,12 @@
+{
+  "minimum-stability" : "alpha",
+  "require": {
+    "dgfip-si1/application": "^1.0@alpha"
+  },
+  "autoload" : {
+    "psr-4" : {
+      "hello_world\\" : "."
+    }
+  }
+
+}
