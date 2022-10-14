@@ -3,3 +3,4 @@ tests/phpunit/.phpunit.cache/
 tests/results/
 tests/tmp/
 vendor/
+examples/*/tests

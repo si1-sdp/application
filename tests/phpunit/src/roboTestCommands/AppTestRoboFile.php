@@ -2,7 +2,7 @@
 /*
  * This file is part of dgfip-si1/application
  */
-namespace DgfipSI1\ApplicationTests;
+namespace DgfipSI1\ApplicationTests\roboTestCommands;
 
 /**
  *    RoboFile for Application test

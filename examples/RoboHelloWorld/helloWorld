@@ -3,12 +3,10 @@
 
 use \DgfipSI1\Application\Application;
 $classLoader = require __DIR__.'/vendor/autoload.php';
-
-$input = new \Symfony\Component\Console\Input\ArgvInput($argv);
-$app = new Application($input);
+$app = new Application($classLoader, $argv);
 $app->setApplicationName("Hello World");
 $app->setApplicationVersion("1.0");
-$app->setRoboCommands([ \hello_world\RoboFile::class]);
+$app->findRoboCommands('roboFiles');
 $app->finalize();
 $statusCode = $app->run(); 
 

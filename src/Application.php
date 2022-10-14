@@ -4,26 +4,27 @@
  */
 namespace DgfipSI1\Application;
 
-use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
-use League\Container\Container;
+use DgfipSI1\Application\Exception\ApplicationTypeException;
+use Composer\Autoload\ClassLoader;
+use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
 use Monolog\Level as MonLvl;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\PsrHandler;
-use Robo\Config\Config;
-use org\bovigo\vfs\vfsStream;
-use org\bovigo\vfs\vfsStreamDirectory;
+use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
 use Robo\Robo;
 use Robo\Runner as RoboRunner;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Application as SymfoApp;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Exception\LogicException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
-use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\Output;
 
 /**
@@ -31,36 +32,51 @@ use Symfony\Component\Console\Output\Output;
  */
 class Application
 {
+    private const ROBO_APPLICATION    = 1;
+    private const SYMFONY_APPLICATION = 2;
+
+    private const SYMFONY_SUBCLASS = '\Symfony\Component\Console\Command\Command';
+    private const ROBO_SUBCLASS    = '\Robo\Tasks';
+
     /** @var string $appName */
     private $appName;
     /** @var string $appVersion */
     private $appVersion;
+    /** @var int $appType */
+    private $appType;
     /** @var Input $input */
     private $input;
     /** @var Output $output */
     private $output;
-    /** @var Container $container */
+    /** @var ApplicationContainer $container */
     private $container;
-    /** @var array<class-string> */
+    /** @var ClassLoader $classLoader  */
+    private $classLoader;
+    /** @var array<string> */
     private $commandClasses;
+    /** @var array<string> */
+    private $commands;
     /** @var ConfigHelper $config */
     private $config;
     /**
      * constructor
      *
-     * @param Input|null                  $input
-     * @param Output|null                 $output
+     * @param ClassLoader                 $classLoader
+     * @param array<string>               $argv
      * @param ConfigurationInterface|null $confSchema
      */
-    public function __construct($input = null, $output = null, $confSchema = null)
+    public function __construct($classLoader, $argv = [], $confSchema = null)
     {
         $appConf = new ApplicationSchema($confSchema);
         $this->config    = new ConfigHelper($appConf);
 
-        $this->container = new Container();
+        $this->container = new ApplicationContainer();
 
-        $this->input  = $input  ?? new StringInput('');
-        $this->output = $output ?? new \Symfony\Component\Console\Output\ConsoleOutput();
+        $this->classLoader = $classLoader;
+        $this->input  = new ArgvInput($argv);
+        $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
+        $this->commands = [];
+        $this->commandClasses = [];
     }
     /**
      * Get the config helper object
@@ -112,13 +128,31 @@ class Application
     }
     /** sets the list of classes containing robo commands
      *
-     * @param array<class-string> $roboCommandClasses
+     * @param string $relativeNamespace
      *
      * @return void
      */
-    public function setRoboCommands($roboCommandClasses)
+    public function findRoboCommands($relativeNamespace)
     {
-        $this->commandClasses = $roboCommandClasses;
+        if ($this->appType && $this->appType !== self::ROBO_APPLICATION) {
+            throw new ApplicationTypeException("Can't initialize robo command - type mismatch");
+        }
+        $this->appType = self::ROBO_APPLICATION;
+        $this->configureAndRegisterCommands($relativeNamespace, self::ROBO_SUBCLASS);
+    }
+    /** sets the list of classes containing symfony commands
+     *
+     * @param string $relativeNamespace
+     *
+     * @return void
+     */
+    public function findSymfonyCommands($relativeNamespace)
+    {
+        if ($this->appType && $this->appType !== self::SYMFONY_APPLICATION) {
+            throw new ApplicationTypeException("Can't initialize symfony command - type mismatch");
+        }
+        $this->appType = self::SYMFONY_APPLICATION;
+        $this->configureAndRegisterCommands($relativeNamespace, self::SYMFONY_SUBCLASS);
     }
     /**
      * Finalize application
@@ -129,13 +163,18 @@ class Application
      */
     public function finalize($configOptions = 0)
     {
+        if ($this->appType !== self::SYMFONY_APPLICATION && $this->appType !== self::ROBO_APPLICATION) {
+            throw new ApplicationTypeException('No type. run find[Robo|Symfony]Commands(namespace)');
+        }
         // Create applicaton.
         $this->setApplicationNameAndVersion();
         $application = new SymfoApp($this->appName, $this->appVersion);
-
+        /** @var \Symfony\Component\Console\Command\Command $command */
+        foreach ($this->container->getServices(tag: 'symfonyCommand') as $id => $command) {
+            $application->add($command);
+        }
 
         $this->config->build($configOptions);
-
         // Create and configure container.
         Robo::configureContainer(
             $this->container,
@@ -144,6 +183,7 @@ class Application
             $this->input,
             $this->output
         );
+        $this->container->add('container', $this->container);
 
         $verbosity = $this->getVerbosity($this->input);
         Robo::addShared($this->container, 'verbosity', $verbosity);
@@ -164,17 +204,34 @@ class Application
      */
     public function run()
     {
-        // Instantiate Robo Runner.
-        $runner = new RoboRunner();
-        $runner->setContainer($this->container);
-        /** @var Input $input */
-        $input       = $this->container->get('input');
-        /** @var Output $output */
-        $output      = $this->container->get('output');
-        /** @var \Robo\Application $application */
-        $application =  $this->container->get('application');
-        /** @phpstan-ignore-next-line */
-        $statusCode  = $runner->run($input, $output, $application, $this->commandClasses);
+        switch ($this->appType) {
+            case self::ROBO_APPLICATION:
+                // Instantiate Robo Runner.
+                $runner = new RoboRunner();
+                $runner->setContainer($this->container);
+                /** @var Input $input */
+                $input       = $this->container->get('input');
+                /** @var Output $output */
+                $output      = $this->container->get('output');
+                /** @var \Robo\Application $application */
+                $application =  $this->container->get('application');
+                /** @phpstan-ignore-next-line */
+                $statusCode  = $runner->run($input, $output, $application, $this->commandClasses);
+                break;
+            case self::SYMFONY_APPLICATION:
+                /** @var SymfoApp $application */
+                $application = $this->container->get('application');
+                /** @var ArgvInput $input */
+                $input = $this->container->get('input');
+                /** @var Output $output */
+                $output = $this->container->get('output');
+                $name = $application->isSingleCommand() ? 'list' : $input->getFirstArgument();
+                $statusCode = $application->run($input, $output);
+                break;
+            default:
+                $msg = "Can't run : finalize application first";
+                throw new ApplicationTypeException($msg);
+        }
 
         return $statusCode;
     }
@@ -201,6 +258,87 @@ class Application
                 throw new NoNameOrVersionException("Version missing");
             }
         }
+    }
+    /**
+     * discovers symfony or robo commands
+     *
+     * @param string      $nameSpace
+     * @param string|null $subClass
+
+     * @return void
+     */
+    protected function configureAndRegisterCommands($nameSpace, $subClass)
+    {
+        $this->commandClasses = $this->discoverPsr4Commands($nameSpace, $subClass);
+        foreach ($this->commandClasses as $commandClass) {
+            if ($this->appType === self::SYMFONY_APPLICATION) {
+                /** @var Command $command */
+                $command = new $commandClass();
+                $defaultName = $command->getName();
+                if (empty($defaultName)) {
+                    throw new LogicException(sprintf("Command name is empty for %s.", $commandClass));
+                }
+                $this->addSharedCommand($defaultName, $command);
+                $this->commands[] = $defaultName;
+            } else {
+                /** @var class-string $commandClass */
+                $reflectionClass = new \ReflectionClass($commandClass);
+                foreach ($reflectionClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+                    if ($method->class === $reflectionClass->getName()) {
+                        $this->commands[] = $method->getName();
+                    }
+                }
+            }
+        }
+        $this->container->addShared('commandList', $this->commands);
+    }
+    /**
+     * Add command to container
+     *
+     * @param string        $id
+     * @param string|object $concrete
+     *
+     * @return DefinitionInterface
+     */
+    protected function addSharedCommand(string $id, $concrete): DefinitionInterface
+    {
+        if (!is_object($concrete) || !is_subclass_of($concrete, self::SYMFONY_SUBCLASS)) {
+            throw new LogicException("invalid Symfony Command provided");
+        }
+        $ret = $this->container->addShared($id, $concrete);
+        $ret->addTag('symfonyCommand');
+
+        return $ret;
+    }
+
+    /**
+     * Discovers commands that are PSR4 auto-loaded.
+     *
+     * @param string      $namespace
+     * @param string|null $subClassName
+     *
+     * @return array<string>
+     *
+     * @throws \ReflectionException
+     */
+    protected function discoverPsr4Commands($namespace, $subClassName): array
+    {
+        // discovers classes that are in a directory ($namespace) imediatly under 'src'
+        $classes = (new RelativeNamespaceDiscovery($this->classLoader))
+            ->setRelativeNamespace($namespace)
+            ->getClasses();
+
+        return array_filter($classes, function ($class) use ($subClassName): bool {
+            /** @var class-string $class */
+            /** @var class-string $subClassName */
+            $reflectionClass = new \ReflectionClass($class);
+            $subClass = new \ReflectionClass($subClassName);
+
+            return $reflectionClass->isSubclassOf($subClass)
+                && !$reflectionClass->isAbstract()
+                && !$reflectionClass->isInterface()
+                && !$reflectionClass->isTrait();
+        });
     }
     /**
      * Detect verbosity specified on command line

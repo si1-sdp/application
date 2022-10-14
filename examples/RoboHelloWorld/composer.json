@@ -5,7 +5,7 @@
   },
   "autoload" : {
     "psr-4" : {
-      "hello_world\\" : "."
+      "hello_world\\" : "src"
     }
   }
 

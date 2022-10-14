@@ -1,5 +1,5 @@
 <?php
-namespace hello_world;
+namespace hello_world\roboFiles;
 
 class RoboFile extends \Robo\Tasks
 {
