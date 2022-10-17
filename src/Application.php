@@ -8,7 +8,7 @@ use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\Application\Exception\ApplicationTypeException;
 use Composer\Autoload\ClassLoader;
-use DgfipSI1\Application\Exception\FinalizeException;
+use Consolidation\Log\Logger;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -16,6 +16,8 @@ use Monolog\Level as MonLvl;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\PsrHandler;
+use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
 use Robo\Robo;
 use Robo\Runner as RoboRunner;
@@ -56,10 +58,11 @@ class Application extends SymfoApp
     private $classLoader;
     /** @var array<string> */
     private $commandClasses;
-    /** @var array<string> */
-    private $commands;
     /** @var ConfigHelper $config */
     private $config;
+    /** @var LoggerInterface $logger */
+        private $logger;
+
     /**
      * constructor
      *
@@ -78,8 +81,9 @@ class Application extends SymfoApp
         $this->classLoader = $classLoader;
         $this->input  = new ArgvInput($argv);
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
-        $this->commands = [];
-        $this->commandClasses = [];
+        $this->output->setVerbosity($this->getVerbosity($this->input));
+        $this->logger = new Logger($this->output);
+        $this->logger->setLogOutputStyler(new \Robo\Log\RoboLogStyle());
     }
     /**
      * Get the config helper object
@@ -93,12 +97,16 @@ class Application extends SymfoApp
     /**
      * Get the logger object
      *
-     * @return Monolog
+     * @return LoggerInterface
      */
     public function logger()
     {
-        /** @var Monolog $logger */
-        $logger = $this->container->get('logger');
+        if ($this->container->has('logger')) {
+            /** @var Monolog $logger */
+            $logger = $this->container->get('logger');
+        } else {
+            return $this->logger;
+        }
 
         return $logger;
     }
@@ -263,28 +271,35 @@ class Application extends SymfoApp
      */
     protected function configureAndRegisterCommands($nameSpace, $subClass)
     {
+        $logContext = [ 'name' => 'configureAndRegisterCommands' ];
         $this->commandClasses = $this->discoverPsr4Commands($nameSpace, $subClass);
+        $commands = [];
         foreach ($this->commandClasses as $commandClass) {
             if ($this->appType === self::SYMFONY_APPLICATION) {
                 /** @var Command $command */
                 $command = new $commandClass();
                 $defaultName = $command->getName();
                 if (empty($defaultName)) {
-                    throw new LogicException(sprintf("Command name is empty for %s.", $commandClass));
+                    $logContext['class'] = $commandClass;
+                    $this->logger()->warning("Command name is empty for {commandClass}", $logContext);
+                } else {
+                    $this->addSharedCommand($defaultName, $command);
+                    $commands[] = $defaultName;
                 }
-                $this->addSharedCommand($defaultName, $command);
-                $this->commands[] = $defaultName;
             } else {
                 /** @var class-string $commandClass */
                 $reflectionClass = new \ReflectionClass($commandClass);
                 foreach ($reflectionClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
                     if ($method->class === $reflectionClass->getName()) {
-                        $this->commands[] = $method->getName();
+                        $commands[] = $method->getName();
                     }
                 }
             }
         }
-        $this->container->addShared('commandList', $this->commands);
+        if (count($commands) > 0) {
+            $logContext['count'] = count($commands);
+            $this->logger()->notice("{count} command(s) found", $logContext);
+        }
     }
     /**
      * Add command to container
@@ -317,22 +332,46 @@ class Application extends SymfoApp
      */
     protected function discoverPsr4Commands($namespace, $subClassName): array
     {
+        $logContext = ['name' => 'discoverPsr4Commands', 'namespace' => $namespace, 'subClass' => $subClassName ];
         // discovers classes that are in a directory ($namespace) imediatly under 'src'
         $classes = (new RelativeNamespaceDiscovery($this->classLoader))
             ->setRelativeNamespace($namespace)
             ->getClasses();
 
-        return array_filter($classes, function ($class) use ($subClassName): bool {
+        foreach ($classes as $class) {
+            $logContext['class'] = $class;
+            $this->logger()->debug("1/2 - search {namespace} namespace - found {class}", $logContext);
+        }
+        $filteredClasses = array_filter($classes, function ($class) use ($subClassName, $logContext): bool {
             /** @var class-string $class */
             /** @var class-string $subClassName */
-            $reflectionClass = new \ReflectionClass($class);
-            $subClass = new \ReflectionClass($subClassName);
+            try {
+                $reflectionClass = new \ReflectionClass($class);
+                $subClass = new \ReflectionClass($subClassName);
+                /** @phpstan-ignore-next-line */
+            } catch (\ReflectionException $e) {
+                $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
+
+                return false;
+            }
 
             return $reflectionClass->isSubclassOf($subClass)
                 && !$reflectionClass->isAbstract()
                 && !$reflectionClass->isInterface()
                 && !$reflectionClass->isTrait();
         });
+        if (count($filteredClasses) === 0) {
+            $this->logger()->warning("No classes subClassing {subClass} found in namespace {namespace}", $logContext);
+        } else {
+            foreach ($filteredClasses as $class) {
+                $logContext['class'] = $class;
+                $this->logger()->debug("2/2 - Filter : {class} matches", $logContext);
+            }
+            $logContext['count'] = count($filteredClasses);
+            $this->logger()->notice("{count} classe(s) found in namespace {namespace}", $logContext);
+        }
+
+        return $filteredClasses;
     }
     /**
      * Detect verbosity specified on command line
@@ -370,8 +409,8 @@ class Application extends SymfoApp
      */
     protected function buildLogger()
     {
+        $logContext = [ 'name' => "buildLogger" ];
         // Create logger
-
         $logger = new Monolog('monolog');
         $monologLevels = [
             OutputInterface::VERBOSITY_QUIET         => MonLvl::fromName('WARNING'),
@@ -394,6 +433,8 @@ class Application extends SymfoApp
             if (!is_string($logfile)) {
                 $logfile = "$this->appName.log";
             }
+            $logContext['file'] = "$ld/$logfile";
+            $this->logger()->notice("starting file logger. Filename = {file}", $logContext);
             $sh = new StreamHandler("$ld/$logfile", MonLvl::fromName('DEBUG'));
             $sh->pushProcessor(new PsrLogMessageProcessor());
             $dateFormat = ApplicationSchema::DEFAULT_DATE_FORMAT;

@@ -14,6 +14,7 @@ use DgfipSI1\ApplicationTests\AppTestConfigSchema;
 use DgfipSI1\testLogger\LogTestCase;
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\Exception\FinalizeException;
+use DgfipSI1\testLogger\TestLogger;
 use org\bovigo\vfs\vfsStream;
 use ReflectionClass;
 use Symfony\Component\Console\Exception\LogicException;
@@ -45,6 +46,7 @@ class ApplicationTest extends LogTestCase
      * @covers \DgfipSI1\Application\Application::config
      * @covers \DgfipSI1\Application\ApplicationSchema::__construct
      * @covers \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
+     * @covers \DgfipSI1\Application\Application::getVerbosity
      */
     public function testConstructor(): void
     {
@@ -253,18 +255,16 @@ class ApplicationTest extends LogTestCase
         $msg = '';
         try {
             $fin->invokeArgs($app, []);
-            $logger = $bl->invokeArgs($app, [ OutputInterface::VERBOSITY_NORMAL ]);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
-            $logger = null;
         }
         if ($throwException) {
             $this->assertNotEmpty($msg, $msg);
         } else {
             $this->assertEmpty($msg);
             /** @var \Monolog\Logger $logger */
+            $logger = $app->logger();
             $this->assertInstanceOf('\Monolog\Logger', $logger);
-            $this->assertEquals($app->logger(), $logger);
             /** @var array<\Monolog\Handler\HandlerInterface> $handlers */
             $handlers = $logger->getHandlers();
             if (null === $filename) {
@@ -302,6 +302,7 @@ class ApplicationTest extends LogTestCase
      * @covers \DgfipSI1\Application\Application::configureAndRegisterCommands
      * @covers \DgfipSI1\Application\Application::discoverPsr4Commands
      * @covers \DgfipSI1\Application\Application::addSharedCommand
+     * @covers \DgfipSI1\Application\Application::logger
      *
      * @uses \DgfipSI1\Application\Application::findRoboCommands
      * @uses \DgfipSI1\Application\Application::findSymfonyCommands
@@ -324,10 +325,12 @@ class ApplicationTest extends LogTestCase
         $asc->setAccessible(true);
         $cc = $class->getProperty('commandClasses');
         $cc->setAccessible(true);
-        $cm = $class->getProperty('commands');
-        $cm->setAccessible(true);
         $at = $class->getProperty('appType');
         $at->setAccessible(true);
+        $lg = $class->getProperty('logger');
+        $lg->setAccessible(true);
+        $this->logger = new TestLogger();
+        $lg->setValue($app, $this->logger);
 
         $symfoClass = $class->getConstant('SYMFONY_SUBCLASS');
         $roboClass  = $class->getConstant('ROBO_SUBCLASS');
@@ -335,35 +338,54 @@ class ApplicationTest extends LogTestCase
         $roboApp    = $class->getConstant('ROBO_APPLICATION');
 
         /** check everything is empty */
+        $this->assertNull($cc->getValue($app));
+
+        /** empty find  */
+        $at->setValue($app, $roboApp);
+        $rc->invokeArgs($app, [ 'symfonyTestCommands', $roboClass ]);
         $this->assertEquals([], $cc->getValue($app));
-        $this->assertEquals([], $cm->getValue($app));
+        $this->assertWarningInLog("No classes subClassing");
+        $this->assertDebugInLog("1/2 - search");
+        $this->assertDebugLogEmpty();
+        $this->assertNoMoreProdMessages();
+
+
         /** find robo commands */
         $at->setValue($app, $roboApp);
         $rc->invokeArgs($app, [ 'roboTestCommands', $roboClass ]);
         /** check results */
         $this->assertEquals(['DgfipSI1\ApplicationTests\roboTestCommands\AppTestRoboFile'], $cc->getValue($app));
-        $this->assertEquals(['helloTest'], $cm->getValue($app));
+        $this->assertNoticeInLog("classe(s) found in namespace");
+        $this->assertNoticeInLog("command(s) found");
+        $this->assertDebugInLog("1/2 - search");
+        $this->assertDebugInLog("2/2 - Filter");
+        $this->assertDebugLogEmpty();
+        $this->assertNoMoreProdMessages();
+
 
         /** find symfony commands */
         $cc->setValue($app, []);
-        $cm->setValue($app, []);
         $at->setValue($app, $symfoApp);
         $rc->invokeArgs($app, [ 'symfonyTestCommands', $symfoClass ]);
         $this->assertEquals(['DgfipSI1\ApplicationTests\symfonyTestCommands\HelloWorldCommand'], $cc->getValue($app));
-        $this->assertEquals(['hello'], $cm->getValue($app));
+        $this->assertNoticeInLog("classe(s) found in namespace");
+        $this->assertNoticeInLog("command(s) found");
+        $this->assertDebugInLog("1/2 - search");
+        $this->assertDebugInLog("2/2 - Filter");
+        $this->assertDebugLogEmpty();
+        $this->assertNoMoreProdMessages();
 
         /** test symfony errors */
         $cc->setValue($app, []);
-        $cm->setValue($app, []);
         $at->setValue($app, $symfoApp);
-        $msg = '';
-        try {
-            $rc->invokeArgs($app, [ 'symfonyBadCommand', $symfoClass ]);
-            /** @phpstan-ignore-next-line */
-        } catch (LogicException $e) {
-            $msg = $e->getMessage();
-        }
-        $this->assertMatchesRegularExpression('/Command name is empty /', $msg);
+        $rc->invokeArgs($app, [ 'symfonyBadCommand', $symfoClass ]);
+        $this->assertWarningInLog('Command name is empty');
+        $this->assertWarningInLog('does not exist');
+        $this->assertNoticeInLog("classe(s) found in namespace");
+        $this->assertDebugInLog("1/2 - search");
+        $this->assertDebugInLog("2/2 - Filter");
+        $this->assertDebugLogEmpty();
+        $this->assertNoMoreProdMessages();
 
         /** test symfony errors */
         $msg = '';
@@ -385,6 +407,7 @@ class ApplicationTest extends LogTestCase
      *
      * @uses \DgfipSI1\Application\Application::__construct
      * @uses \DgfipSI1\Application\Application::config
+     * @uses \DgfipSI1\Application\Application::logger
      * @uses \DgfipSI1\Application\Application::setName
      * @uses \DgfipSI1\Application\Application::setVersion
      * @uses \DgfipSI1\Application\Application::buildLogger
@@ -403,6 +426,13 @@ class ApplicationTest extends LogTestCase
         $app = new Application($this->loader, [ './test', 'hello:test']);
         $app->setName('test');
         $app->setVersion('1.00');
+        $msg = '';
+        try {
+            $app->go();
+        } catch (ApplicationTypeException $e) {
+            $msg = $e->getMessage();
+        }
+        $this->assertMatchesRegularExpression("/No type. Run find/", $msg);
         $app->findRoboCommands('roboTestCommands');
         /* check that calling findSymphonyCommands throws an error */
         $msg = '';
@@ -425,6 +455,7 @@ class ApplicationTest extends LogTestCase
      *
      * @uses \DgfipSI1\Application\Application::__construct
      * @uses \DgfipSI1\Application\Application::config
+     * @uses \DgfipSI1\Application\Application::logger
      * @uses \DgfipSI1\Application\Application::setName
      * @uses \DgfipSI1\Application\Application::setVersion
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
