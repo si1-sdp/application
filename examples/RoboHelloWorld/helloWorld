@@ -4,10 +4,9 @@
 use \DgfipSI1\Application\Application;
 $classLoader = require __DIR__.'/vendor/autoload.php';
 $app = new Application($classLoader, $argv);
-$app->setApplicationName("Hello World");
-$app->setApplicationVersion("1.0");
+$app->setName("Hello World");
+$app->setVersion("1.0");
 $app->findRoboCommands('roboFiles');
-$app->finalize();
-$statusCode = $app->run(); 
+$statusCode=$app->go();
 
 exit($statusCode);

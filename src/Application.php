@@ -8,6 +8,7 @@ use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\Application\Exception\ApplicationTypeException;
 use Composer\Autoload\ClassLoader;
+use DgfipSI1\Application\Exception\FinalizeException;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -25,12 +26,13 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\LogicException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\Output;
 
 /**
  * class Application
  */
-class Application
+class Application extends SymfoApp
 {
     private const ROBO_APPLICATION    = 1;
     private const SYMFONY_APPLICATION = 2;
@@ -67,6 +69,7 @@ class Application
      */
     public function __construct($classLoader, $argv = [], $confSchema = null)
     {
+        parent::__construct();
         $appConf = new ApplicationSchema($confSchema);
         $this->config    = new ConfigHelper($appConf);
 
@@ -107,7 +110,7 @@ class Application
      *
      * @return self
      */
-    public function setApplicationName($name)
+    public function setName($name)
     {
         $this->appName = $name;
 
@@ -120,7 +123,7 @@ class Application
      *
      * @return self
      */
-    public function setApplicationVersion($version)
+    public function setVersion($version)
     {
         $this->appVersion = $version;
 
@@ -157,33 +160,60 @@ class Application
     /**
      * Finalize application
      *
+     * @param int $configOptions
+     *
+     * @return int
+     */
+    public function go($configOptions = 0)
+    {
+        if ($this->appType !== self::SYMFONY_APPLICATION && $this->appType !== self::ROBO_APPLICATION) {
+            throw new ApplicationTypeException('No type. Run find[Robo|Symfony]Commands(namespace)');
+        }
+        $this->finalize();
+        $statusCode = 0;
+        switch ($this->appType) {
+            case self::ROBO_APPLICATION:
+                // Instantiate Robo Runner.
+                $runner = new RoboRunner();
+                $runner->setContainer($this->container);
+                /** @phpstan-ignore-next-line */
+                $statusCode  = $runner->run($this->input, $this->output, $this, $this->commandClasses);
+                break;
+            case self::SYMFONY_APPLICATION:
+                $name = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
+                $statusCode = parent::run($this->input, $this->output);
+                break;
+        }
+
+        return $statusCode;
+    }
+
+    /**
+     * finalize application before run
+     *
      * @param integer $configOptions
      *
      * @return void
      */
-    public function finalize($configOptions = 0)
+    protected function finalize($configOptions = 0)
     {
-        if ($this->appType !== self::SYMFONY_APPLICATION && $this->appType !== self::ROBO_APPLICATION) {
-            throw new ApplicationTypeException('No type. run find[Robo|Symfony]Commands(namespace)');
-        }
-        // Create applicaton.
         $this->setApplicationNameAndVersion();
-        $application = new SymfoApp($this->appName, $this->appVersion);
         /** @var \Symfony\Component\Console\Command\Command $command */
         foreach ($this->container->getServices(tag: 'symfonyCommand') as $id => $command) {
-            $application->add($command);
+            $this->add($command);
         }
 
         $this->config->build($configOptions);
         // Create and configure container.
         Robo::configureContainer(
             $this->container,
-            $application,
+            $this,
             $this->config,
             $this->input,
             $this->output
         );
-        $this->container->add('container', $this->container);
+        //print_r(array_keys($this->container->getDefinitions()));
+        //$this->container->add('container', $this->container);
 
         $verbosity = $this->getVerbosity($this->input);
         Robo::addShared($this->container, 'verbosity', $verbosity);
@@ -196,44 +226,6 @@ class Application
         // didn't find a way to replace a service => rename old and create new
         Robo::addShared($this->container, 'logger', $logger);
         Robo::finalizeContainer($this->container);
-    }
-    /**
-     * Run command
-     *
-     * @return integer
-     */
-    public function run()
-    {
-        switch ($this->appType) {
-            case self::ROBO_APPLICATION:
-                // Instantiate Robo Runner.
-                $runner = new RoboRunner();
-                $runner->setContainer($this->container);
-                /** @var Input $input */
-                $input       = $this->container->get('input');
-                /** @var Output $output */
-                $output      = $this->container->get('output');
-                /** @var \Robo\Application $application */
-                $application =  $this->container->get('application');
-                /** @phpstan-ignore-next-line */
-                $statusCode  = $runner->run($input, $output, $application, $this->commandClasses);
-                break;
-            case self::SYMFONY_APPLICATION:
-                /** @var SymfoApp $application */
-                $application = $this->container->get('application');
-                /** @var ArgvInput $input */
-                $input = $this->container->get('input');
-                /** @var Output $output */
-                $output = $this->container->get('output');
-                $name = $application->isSingleCommand() ? 'list' : $input->getFirstArgument();
-                $statusCode = $application->run($input, $output);
-                break;
-            default:
-                $msg = "Can't run : finalize application first";
-                throw new ApplicationTypeException($msg);
-        }
-
-        return $statusCode;
     }
     /**
      * Verify that we have an application name and version
@@ -258,6 +250,8 @@ class Application
                 throw new NoNameOrVersionException("Version missing");
             }
         }
+        parent::setName($this->appName);
+        parent::setVersion($this->appVersion);
     }
     /**
      * discovers symfony or robo commands

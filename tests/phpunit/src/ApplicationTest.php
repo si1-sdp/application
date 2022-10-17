@@ -13,6 +13,7 @@ use DgfipSI1\Application\Exception\ApplicationTypeException;
 use DgfipSI1\ApplicationTests\AppTestConfigSchema;
 use DgfipSI1\testLogger\LogTestCase;
 use Composer\Autoload\ClassLoader;
+use DgfipSI1\Application\Exception\FinalizeException;
 use org\bovigo\vfs\vfsStream;
 use ReflectionClass;
 use Symfony\Component\Console\Exception\LogicException;
@@ -76,8 +77,8 @@ class ApplicationTest extends LogTestCase
     /**
      * Tests application name and version handling
      *
-     * @covers \DgfipSI1\Application\Application::setApplicationName
-     * @covers \DgfipSI1\Application\Application::setApplicationVersion
+     * @covers \DgfipSI1\Application\Application::setName
+     * @covers \DgfipSI1\Application\Application::setVersion
      * @covers \DgfipSI1\Application\Application::setApplicationNameAndVersion
      * @covers \DgfipSI1\Application\Application::finalize
      *
@@ -97,34 +98,39 @@ class ApplicationTest extends LogTestCase
      */
     public function testAppNameAndVersion(): void
     {
+        $class = new ReflectionClass('\DgfipSI1\Application\Application');
+        $fin = $class->getMethod('finalize');
+        $fin->setAccessible(true);
         /** test without name or version */
         $app = new Application($this->loader);
         $app->findRoboCommands('roboTestCommands');
         $msg = '';
         try {
-            $app->finalize();
+            $fin->invokeArgs($app, []);
+            /** @phpstan-ignore-next-line - ignore 'dead catch' error  */
         } catch (NoNameOrVersionException $e) {
             $msg = $e->getMessage();
         }
         /** test name and version setters */
         $this->assertEquals('Application name missing', $msg);
-        $app->setApplicationName('tests');
+        $app->setName('tests');
         $msg = '';
         try {
-            $app->finalize();
+            $fin->invokeArgs($app, []);
+            /** @phpstan-ignore-next-line - ignore 'dead catch' error  */
         } catch (NoNameOrVersionException $e) {
             $msg = $e->getMessage();
         }
         $this->assertEquals('Version missing', $msg);
-        $app->setApplicationVersion('tests');
-        $app->finalize();
+        $app->setVersion('tests');
+        $fin->invokeArgs($app, []);
 
         /** test name and version via config */
         $app = new Application($this->loader);
         $app->findRoboCommands('roboTestCommands');
         $app->config()->setDefault(CONF::APPLICATION_NAME, 'test');
         $app->config()->setDefault(CONF::APPLICATION_VERSION, '1.0.0');
-        $app->finalize();
+        $fin->invokeArgs($app, []);
     }
     /**
      * @return array<string,mixed>
@@ -203,9 +209,9 @@ class ApplicationTest extends LogTestCase
      *
      * @covers \DgfipSI1\Application\Application::buildLogger
      * @covers \DgfipSI1\Application\Application::logger
-     * @covers \DgfipSI1\Application\Application::finalize
      *
      * @uses   \DgfipSI1\Application\Application::__construct
+     * @uses   \DgfipSI1\Application\Application::finalize
      * @uses   \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses   \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
      * @uses   \DgfipSI1\Application\Application::config
@@ -232,6 +238,8 @@ class ApplicationTest extends LogTestCase
         $class = new ReflectionClass('\DgfipSI1\Application\Application');
         $bl = $class->getMethod('buildLogger');
         $bl->setAccessible(true);
+        $fin = $class->getMethod('finalize');
+        $fin->setAccessible(true);
         $app = new Application($this->loader);
         $app->findRoboCommands('roboTestCommands');
         $app->config()->set(CONF::APPLICATION_NAME, 'test');
@@ -244,7 +252,7 @@ class ApplicationTest extends LogTestCase
         }
         $msg = '';
         try {
-            $app->finalize();
+            $fin->invokeArgs($app, []);
             $logger = $bl->invokeArgs($app, [ OutputInterface::VERBOSITY_NORMAL ]);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
@@ -295,19 +303,14 @@ class ApplicationTest extends LogTestCase
      * @covers \DgfipSI1\Application\Application::discoverPsr4Commands
      * @covers \DgfipSI1\Application\Application::addSharedCommand
      *
-     * @uses \DgfipSI1\Application\Application::run
      * @uses \DgfipSI1\Application\Application::findRoboCommands
      * @uses \DgfipSI1\Application\Application::findSymfonyCommands
-     * @uses \DgfipSI1\Application\Application::finalize
      * @uses \DgfipSI1\Application\Application::__construct
      * @uses \DgfipSI1\Application\Application::config
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
      * @uses \DgfipSI1\Application\Application::buildLogger
      * @uses \DgfipSI1\Application\Application::getVerbosity
-     * @uses \DgfipSI1\Application\Application::setApplicationName
-     * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses \DgfipSI1\Application\Application::setApplicationVersion
      * @uses \DgfipSI1\Application\ApplicationContainer
      */
     public function testClassFinders(): void
@@ -375,87 +378,72 @@ class ApplicationTest extends LogTestCase
     /**
      *  test roboRun
      *
-     * @covers \DgfipSI1\Application\Application::run
      * @covers \DgfipSI1\Application\Application::findRoboCommands
      * @covers \DgfipSI1\Application\Application::findSymfonyCommands
+     * @covers \DgfipSI1\Application\Application::go
      * @covers \DgfipSI1\Application\Application::finalize
      *
      * @uses \DgfipSI1\Application\Application::__construct
      * @uses \DgfipSI1\Application\Application::config
-     * @uses \DgfipSI1\Application\ApplicationSchema::__construct
-     * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
+     * @uses \DgfipSI1\Application\Application::setName
+     * @uses \DgfipSI1\Application\Application::setVersion
      * @uses \DgfipSI1\Application\Application::buildLogger
      * @uses \DgfipSI1\Application\Application::getVerbosity
-     * @uses \DgfipSI1\Application\Application::setApplicationName
      * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses \DgfipSI1\Application\Application::setApplicationVersion
      * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
      * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
      * @uses \DgfipSI1\Application\ApplicationContainer
+     * @uses \DgfipSI1\Application\ApplicationSchema::__construct
+     * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
+     *
      */
     public function testRoboRun(): void
     {
         $this->expectOutputString('Hello !');
         $app = new Application($this->loader, [ './test', 'hello:test']);
-        /* check that finalize fails if we haven't found classes  */
-        $msg = '';
-        try {
-            $app->finalize();
-        } catch (ApplicationTypeException $e) {
-            $msg = $e->getMessage();
-        }
-        /* check that run fails if not initalized  */
-        $msg = '';
-        try {
-            $app->run();
-        } catch (ApplicationTypeException $e) {
-            $msg = $e->getMessage();
-        }
-        $this->assertNotEmpty($msg);
-
-        $app->setApplicationName('test');
-        $app->setApplicationVersion('1.00');
+        $app->setName('test');
+        $app->setVersion('1.00');
         $app->findRoboCommands('roboTestCommands');
-        $app->finalize();
-        /* check that calling symphonyNamespace throws an error */
+        /* check that calling findSymphonyCommands throws an error */
         $msg = '';
         try {
             $app->findSymfonyCommands('foo');
         } catch (ApplicationTypeException $e) {
             $msg = $e->getMessage();
         }
-        $this->assertNotEmpty($msg);
-        $app->run();
+        $this->assertMatchesRegularExpression('/Can\'t initialize symfony command/', $msg);
+        $rc = $app->go();
+        $this->assertEquals(0, $rc);
     }
     /**
      *  test symfonyRun
      *
-     * @covers \DgfipSI1\Application\Application::run
      * @covers \DgfipSI1\Application\Application::findRoboCommands
      * @covers \DgfipSI1\Application\Application::findSymfonyCommands
+     * @covers \DgfipSI1\Application\Application::go
      * @covers \DgfipSI1\Application\Application::finalize
      *
      * @uses \DgfipSI1\Application\Application::__construct
      * @uses \DgfipSI1\Application\Application::config
+     * @uses \DgfipSI1\Application\Application::setName
+     * @uses \DgfipSI1\Application\Application::setVersion
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
      * @uses \DgfipSI1\Application\Application::buildLogger
      * @uses \DgfipSI1\Application\Application::getVerbosity
-     * @uses \DgfipSI1\Application\Application::setApplicationName
      * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses \DgfipSI1\Application\Application::setApplicationVersion
      * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
      * @uses \DgfipSI1\Application\Application::addSharedCommand
      * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
      * @uses \DgfipSI1\Application\ApplicationContainer
      */
-    public function testSynfonyRun(): void
+    public function testSymfonyRun(): void
     {
         $this->expectOutputString('Hello world !!');
         $app = new Application($this->loader, [ './test', 'hello']);
 
-        $app->setApplicationName('test');
-        $app->setApplicationVersion('1.00');
+        $app->setName('test');
+        $app->setVersion('1.00');
         $app->findSymfonyCommands('symfonyTestCommands');
         /* check that calling roboNamespace throws an error */
         $msg = '';
@@ -465,7 +453,7 @@ class ApplicationTest extends LogTestCase
             $msg = $e->getMessage();
         }
         $this->assertNotEmpty($msg);
-        $app->finalize();
-        $app->run();
+        $rc = $app->go();
+        $this->assertEquals(0, $rc);
     }
 }

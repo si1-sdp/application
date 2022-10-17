@@ -35,7 +35,10 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
     }
 
     /**
-     * @inheritDoc
+     * @param string $regex
+     * @param string $tag
+     *
+     * @return array<object>
      */
     public function getServices(string $regex = null, string $tag = null)
     {
@@ -43,7 +46,9 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
         foreach ($this->getDefinitions($regex, $tag) as $alias => $definition) {
             /** @var \League\Container\Definition\Definition $definition */
             $obj = $definition->getConcrete();
-            $ret[$alias] = (is_object($obj))? $obj : $this->get($alias);
+            if (is_object($obj)) {
+                $ret[$alias] = $obj;
+            }
         }
 
         return $ret;

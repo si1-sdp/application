@@ -14,10 +14,9 @@ if (file_exists($autoloadFile = __DIR__ . '/vendor/autoload.php')
     throw new \Exception("Could not locate autoload.php. cwd is $cwd; __DIR__ is " . __DIR__);
 }
 $app = new Application($loader, $argv);
-$app->setApplicationName("Hello World");
-$app->setApplicationVersion("1.0");
+$app->setName("Hello World");
+$app->setVersion("1.0");
 $app->findSymfonyCommands('Commands');
-$app->finalize();
-$statusCode = $app->run(); 
+$statusCode = $app->go(); 
 
 exit($statusCode);
