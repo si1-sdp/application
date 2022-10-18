@@ -55,7 +55,7 @@ class Application extends SymfoApp
     /** @var ApplicationContainer $container */
     private $container;
     /** @var ClassLoader $classLoader  */
-    private $classLoader;
+    protected $classLoader;
     /** @var array<string> */
     private $commandClasses;
     /** @var ConfigHelper $config */
