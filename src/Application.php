@@ -36,8 +36,8 @@ use Symfony\Component\Console\Output\Output;
  */
 class Application extends SymfoApp
 {
-    private const ROBO_APPLICATION    = 1;
-    private const SYMFONY_APPLICATION = 2;
+    protected const ROBO_APPLICATION    = 1;
+    protected const SYMFONY_APPLICATION = 2;
 
     private const SYMFONY_SUBCLASS = '\Symfony\Component\Console\Command\Command';
     private const ROBO_SUBCLASS    = '\Robo\Tasks';
@@ -53,7 +53,7 @@ class Application extends SymfoApp
     /** @var Output $output */
     private $output;
     /** @var ApplicationContainer $container */
-    private $container;
+    protected $container;
     /** @var ClassLoader $classLoader  */
     private $classLoader;
     /** @var array<string> */
@@ -142,6 +142,9 @@ class Application extends SymfoApp
      * @param string $relativeNamespace
      *
      * @return void
+     *
+     * @throws \ReflectionException
+     * @throws ApplicationTypeException
      */
     public function findRoboCommands($relativeNamespace)
     {
@@ -149,21 +152,25 @@ class Application extends SymfoApp
             throw new ApplicationTypeException("Can't initialize robo command - type mismatch");
         }
         $this->appType = self::ROBO_APPLICATION;
-        $this->configureAndRegisterCommands($relativeNamespace, self::ROBO_SUBCLASS);
+        $this->commandClasses = $this->discoverRoboCommands($relativeNamespace, self::ROBO_SUBCLASS);
     }
     /** sets the list of classes containing symfony commands
      *
      * @param string $relativeNamespace
+     * @param string $subClass
      *
      * @return void
+     *
+     * @throws \ReflectionException
+     * @throws ApplicationTypeException
      */
-    public function findSymfonyCommands($relativeNamespace)
+    public function findSymfonyCommands(string $relativeNamespace, string $subClass = self::SYMFONY_SUBCLASS)
     {
         if ($this->appType && $this->appType !== self::SYMFONY_APPLICATION) {
             throw new ApplicationTypeException("Can't initialize symfony command - type mismatch");
         }
         $this->appType = self::SYMFONY_APPLICATION;
-        $this->configureAndRegisterCommands($relativeNamespace, self::SYMFONY_SUBCLASS);
+        $this->configureAndRegisterServices($relativeNamespace, $subClass, 'symfonyCommand', "name");
     }
     /**
      * Finalize application
@@ -174,10 +181,11 @@ class Application extends SymfoApp
      */
     public function go($configOptions = 0)
     {
+        $this->finalize();
+        // Check if appType has been set, probably during finalize when discovering commands
         if ($this->appType !== self::SYMFONY_APPLICATION && $this->appType !== self::ROBO_APPLICATION) {
             throw new ApplicationTypeException('No type. Run find[Robo|Symfony]Commands(namespace)');
         }
-        $this->finalize();
         $statusCode = 0;
         switch ($this->appType) {
             case self::ROBO_APPLICATION:
@@ -262,37 +270,26 @@ class Application extends SymfoApp
         parent::setVersion($this->appVersion);
     }
     /**
-     * discovers symfony or robo commands
+     * Discovers robo commands
      *
-     * @param string      $nameSpace
-     * @param string|null $subClass
+     * @param string $nameSpace
+     * @param string $subClass
 
-     * @return void
+     * @return array<string>
+     *
+     * @throws \ReflectionException
      */
-    protected function configureAndRegisterCommands($nameSpace, $subClass)
+    protected function discoverRoboCommands(string $nameSpace, string $subClass): array
     {
-        $logContext = [ 'name' => 'configureAndRegisterCommands' ];
-        $this->commandClasses = $this->discoverPsr4Commands($nameSpace, $subClass);
+        $logContext = [ 'name' => 'discoverRoboCommands' ];
+        $commandClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
         $commands = [];
-        foreach ($this->commandClasses as $commandClass) {
-            if ($this->appType === self::SYMFONY_APPLICATION) {
-                /** @var Command $command */
-                $command = new $commandClass();
-                $defaultName = $command->getName();
-                if (empty($defaultName)) {
-                    $logContext['class'] = $commandClass;
-                    $this->logger()->warning("Command name is empty for {commandClass}", $logContext);
-                } else {
-                    $this->addSharedCommand($defaultName, $command);
-                    $commands[] = $defaultName;
-                }
-            } else {
-                /** @var class-string $commandClass */
-                $reflectionClass = new \ReflectionClass($commandClass);
-                foreach ($reflectionClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
-                    if ($method->class === $reflectionClass->getName()) {
-                        $commands[] = $method->getName();
-                    }
+        foreach ($commandClasses as $commandClass) {
+            /** @var class-string $commandClass */
+            $reflectionClass = new \ReflectionClass($commandClass);
+            foreach ($reflectionClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+                if ($method->class === $reflectionClass->getName()) {
+                    $commands[] = $method->getName();
                 }
             }
         }
@@ -300,24 +297,119 @@ class Application extends SymfoApp
             $logContext['count'] = count($commands);
             $this->logger()->notice("{count} command(s) found", $logContext);
         }
+
+        return $commandClasses;
     }
+
+
     /**
-     * Add command to container
+     * discovers classes in a namespace and register each instance to the container
      *
-     * @param string        $id
+     * @param string      $nameSpace
+     * @param string      $subClass
+     * @param string|null $tag
+     * @param string|null $attributeNameForId
+
+     * @return array<string>
+     *
+     * @throws \ReflectionException
+     */
+    protected function configureAndRegisterServices(
+        string $nameSpace,
+        string $subClass,
+        string $tag = null,
+        string $attributeNameForId = null
+    ): array {
+        $logContext = [ 'name' => 'configureAndRegisterServices' ];
+        $discoveredClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
+        $returned = [];
+        foreach ($discoveredClasses as $discoveredClass) {
+            $concrete = new $discoveredClass();
+            try {
+                $serviceDefinition = $this->addSharedService(
+                    $concrete,
+                    $attributeNameForId,
+                    $subClass,
+                    $tag
+                );
+                $returned[] = $serviceDefinition->getAlias();
+            } catch (\LogicException $e) {
+                $logContext['class'] = $discoveredClass;
+                $logContext['errorMessage'] = $e->getMessage();
+                $this->logger()->warning(
+                    "Service could not be added for {commandClass}: {errorMessage}",
+                    $logContext
+                );
+            }
+        }
+        if (count($returned) > 0) {
+            $logContext['count'] = count($returned);
+            $this->logger()->notice("{count} service(s) found", $logContext);
+        }
+
+        return $returned;
+    }
+
+    /**
+     * Add a shared service to the container.
+     * The id of the service is automatically discovered using PHP attributes.
+     * A tag can be automatically added.
+     *
      * @param string|object $concrete
+     * @param string|null   $attributeNameForId
+     * @param string|null   $subClassRestriction
+     * @param string|null   $tag
      *
      * @return DefinitionInterface
+     *
+     * @throws \LogicException
      */
-    protected function addSharedCommand(string $id, $concrete): DefinitionInterface
-    {
-        if (!is_object($concrete) || !is_subclass_of($concrete, self::SYMFONY_SUBCLASS)) {
-            throw new LogicException("invalid Symfony Command provided");
+    protected function addSharedService(
+        $concrete,
+        string $attributeNameForId = null,
+        string $subClassRestriction = null,
+        string $tag = null
+    ): DefinitionInterface {
+        if (!is_object($concrete)) {
+            throw new LogicException("invalid Service provided");
         }
-        $ret = $this->container->addShared($id, $concrete);
-        $ret->addTag('symfonyCommand');
+        if ((null === $subClassRestriction) || !is_subclass_of($concrete, $subClassRestriction)) {
+            throw new LogicException(sprintf("invalid Service provided: not subclass of %s", $subClassRestriction));
+        }
+        if (null === $attributeNameForId) {
+            $attributeNameForId = "name";
+        }
+        if (!$attributeNameForId) {
+            throw new LogicException("invalid attribute name provided for service id");
+        }
+        $serviceId = null;
+        try {
+            $attributes = (new \ReflectionClass($concrete::class))->getAttributes();
+            foreach ($attributes as $attribute) {
+                $attributeArguments = $attribute->getArguments();
+                if (array_key_exists($attributeNameForId, $attributeArguments)) {
+                    $serviceId = $attributeArguments[$attributeNameForId];
+                    break;
+                }
+            }
+            if (null === $serviceId) {
+                throw new LogicException(
+                    sprintf(
+                        "invalid service id for class %s, %s attribute argument not found",
+                        $concrete::class,
+                        $attributeNameForId
+                    )
+                );
+            }
+        } catch (\ReflectionException) {
+            throw new LogicException("invalid service id, could not decode attributes");
+        }
+        $serviceDefinition = $this->container->addShared($serviceId, $concrete);
+        if ((null !== $tag) && ("" !== $tag)) {
+            $serviceDefinition->addTag($tag);
+        }
 
-        return $ret;
+        return $serviceDefinition;
     }
 
     /**
@@ -330,9 +422,9 @@ class Application extends SymfoApp
      *
      * @throws \ReflectionException
      */
-    protected function discoverPsr4Commands($namespace, $subClassName): array
+    protected function discoverPsr4Classes($namespace, $subClassName): array
     {
-        $logContext = ['name' => 'discoverPsr4Commands', 'namespace' => $namespace, 'subClass' => $subClassName ];
+        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace, 'subClass' => $subClassName ];
         // discovers classes that are in a directory ($namespace) imediatly under 'src'
         $classes = (new RelativeNamespaceDiscovery($this->classLoader))
             ->setRelativeNamespace($namespace)

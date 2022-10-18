@@ -4,3 +4,4 @@ tests/results/
 tests/tmp/
 vendor/
 examples/*/tests
+.idea
