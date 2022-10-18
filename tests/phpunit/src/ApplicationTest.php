@@ -92,7 +92,7 @@ class ApplicationTest extends LogTestCase
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
      * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
-     * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
+     * @uses \DgfipSI1\Application\Application::discoverPsr4Classes
      * @uses \DgfipSI1\Application\Application::findRoboCommands
      * @uses \DgfipSI1\Application\ApplicationContainer
      *
@@ -220,7 +220,7 @@ class ApplicationTest extends LogTestCase
      * @uses   \DgfipSI1\Application\Application::getVerbosity
      * @uses   \DgfipSI1\Application\Application::setApplicationNameAndVersion
      * @uses   \DgfipSI1\Application\Application::configureAndRegisterCommands
-     * @uses   \DgfipSI1\Application\Application::discoverPsr4Commands
+     * @uses   \DgfipSI1\Application\Application::discoverPsr4Classes
      * @uses   \DgfipSI1\Application\Application::findRoboCommands
      * @uses   \DgfipSI1\Application\ApplicationContainer
      *
@@ -299,8 +299,9 @@ class ApplicationTest extends LogTestCase
     /**
      *  test class finders
      *
-     * @covers \DgfipSI1\Application\Application::configureAndRegisterCommands
-     * @covers \DgfipSI1\Application\Application::discoverPsr4Commands
+     * @covers \DgfipSI1\Application\Application::configureAndRegisterServices
+     * @covers \DgfipSI1\Application\Application::discoverRoboCommands
+     * @covers \DgfipSI1\Application\Application::discoverPsr4Classes
      * @covers \DgfipSI1\Application\Application::addSharedService
      * @covers \DgfipSI1\Application\Application::logger
      *
@@ -319,8 +320,10 @@ class ApplicationTest extends LogTestCase
         $app   = new Application($this->loader);
 
         $class = new ReflectionClass('\DgfipSI1\Application\Application');
-        $rc = $class->getMethod('configureAndRegisterCommands');
-        $rc->setAccessible(true);
+        $rcr = $class->getMethod('discoverRoboCommands');
+        $rcr->setAccessible(true);
+        $rcs = $class->getMethod('configureAndRegisterServices');
+        $rcs->setAccessible(true);
         $asc = $class->getMethod('addSharedService');
         $asc->setAccessible(true);
         $cc = $class->getProperty('commandClasses');
@@ -342,8 +345,8 @@ class ApplicationTest extends LogTestCase
 
         /** empty find  */
         $at->setValue($app, $roboApp);
-        $rc->invokeArgs($app, [ 'symfonyTestCommands', $roboClass ]);
-        $this->assertEquals([], $cc->getValue($app));
+        $returnedValue = $rcr->invokeArgs($app, [ 'symfonyTestCommands', $roboClass ]);
+        $this->assertEquals([], $returnedValue);
         $this->assertWarningInLog("No classes subClassing");
         $this->assertDebugInLog("1/2 - search");
         $this->assertDebugLogEmpty();
@@ -352,9 +355,9 @@ class ApplicationTest extends LogTestCase
 
         /** find robo commands */
         $at->setValue($app, $roboApp);
-        $rc->invokeArgs($app, [ 'roboTestCommands', $roboClass ]);
+        $returnedValue = $rcr->invokeArgs($app, [ 'roboTestCommands', $roboClass ]);
         /** check results */
-        $this->assertEquals(['DgfipSI1\ApplicationTests\roboTestCommands\AppTestRoboFile'], $cc->getValue($app));
+        $this->assertEquals(['DgfipSI1\ApplicationTests\roboTestCommands\AppTestRoboFile'], $returnedValue);
         $this->assertNoticeInLog("classe(s) found in namespace");
         $this->assertNoticeInLog("command(s) found");
         $this->assertDebugInLog("1/2 - search");
@@ -366,10 +369,10 @@ class ApplicationTest extends LogTestCase
         /** find symfony commands */
         $cc->setValue($app, []);
         $at->setValue($app, $symfoApp);
-        $rc->invokeArgs($app, [ 'symfonyTestCommands', $symfoClass ]);
-        $this->assertEquals(['DgfipSI1\ApplicationTests\symfonyTestCommands\HelloWorldCommand'], $cc->getValue($app));
+        $returnedValue = $rcs->invokeArgs($app, [ 'symfonyTestCommands', $symfoClass ]);
+        $this->assertEquals(['hello'], $returnedValue);
         $this->assertNoticeInLog("classe(s) found in namespace");
-        $this->assertNoticeInLog("command(s) found");
+        $this->assertNoticeInLog("service(s) found");
         $this->assertDebugInLog("1/2 - search");
         $this->assertDebugInLog("2/2 - Filter");
         $this->assertDebugLogEmpty();
@@ -378,8 +381,8 @@ class ApplicationTest extends LogTestCase
         /** test symfony errors */
         $cc->setValue($app, []);
         $at->setValue($app, $symfoApp);
-        $rc->invokeArgs($app, [ 'symfonyBadCommand', $symfoClass ]);
-        $this->assertWarningInLog('Command could not be added');
+        $returnedValue = $rcs->invokeArgs($app, [ 'symfonyBadCommand', $symfoClass ]);
+        $this->assertWarningInLog('Service could not be added');
         $this->assertWarningInLog('does not exist');
         $this->assertNoticeInLog("classe(s) found in namespace");
         $this->assertDebugInLog("1/2 - search");
@@ -413,8 +416,9 @@ class ApplicationTest extends LogTestCase
      * @uses \DgfipSI1\Application\Application::buildLogger
      * @uses \DgfipSI1\Application\Application::getVerbosity
      * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
-     * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
+     * @uses \DgfipSI1\Application\Application::discoverPsr4Classes
+     * @uses \DgfipSI1\Application\Application::discoverRoboCommands
+     * @uses \DgfipSI1\Application\Application::configureAndRegisterServices
      * @uses \DgfipSI1\Application\ApplicationContainer
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
@@ -463,9 +467,9 @@ class ApplicationTest extends LogTestCase
      * @uses \DgfipSI1\Application\Application::buildLogger
      * @uses \DgfipSI1\Application\Application::getVerbosity
      * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
+     * @uses \DgfipSI1\Application\Application::configureAndRegisterServices
      * @uses \DgfipSI1\Application\Application::addSharedService
-     * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
+     * @uses \DgfipSI1\Application\Application::discoverPsr4Classes
      * @uses \DgfipSI1\Application\ApplicationContainer
      */
     public function testSymfonyRun(): void
