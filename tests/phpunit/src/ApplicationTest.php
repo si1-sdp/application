@@ -301,7 +301,7 @@ class ApplicationTest extends LogTestCase
      *
      * @covers \DgfipSI1\Application\Application::configureAndRegisterCommands
      * @covers \DgfipSI1\Application\Application::discoverPsr4Commands
-     * @covers \DgfipSI1\Application\Application::addSharedCommand
+     * @covers \DgfipSI1\Application\Application::addSharedService
      * @covers \DgfipSI1\Application\Application::logger
      *
      * @uses \DgfipSI1\Application\Application::findRoboCommands
@@ -321,7 +321,7 @@ class ApplicationTest extends LogTestCase
         $class = new ReflectionClass('\DgfipSI1\Application\Application');
         $rc = $class->getMethod('configureAndRegisterCommands');
         $rc->setAccessible(true);
-        $asc = $class->getMethod('addSharedCommand');
+        $asc = $class->getMethod('addSharedService');
         $asc->setAccessible(true);
         $cc = $class->getProperty('commandClasses');
         $cc->setAccessible(true);
@@ -379,7 +379,7 @@ class ApplicationTest extends LogTestCase
         $cc->setValue($app, []);
         $at->setValue($app, $symfoApp);
         $rc->invokeArgs($app, [ 'symfonyBadCommand', $symfoClass ]);
-        $this->assertWarningInLog('Command name is empty');
+        $this->assertWarningInLog('Command could not be added');
         $this->assertWarningInLog('does not exist');
         $this->assertNoticeInLog("classe(s) found in namespace");
         $this->assertDebugInLog("1/2 - search");
@@ -390,12 +390,12 @@ class ApplicationTest extends LogTestCase
         /** test symfony errors */
         $msg = '';
         try {
-            $asc->invokeArgs($app, [ 'test', $this ]);
+            $asc->invokeArgs($app, [ $this ]);
             /** @phpstan-ignore-next-line */
         } catch (LogicException $e) {
             $msg = $e->getMessage();
         }
-        $this->assertMatchesRegularExpression('/invalid Symfony Command provided/', $msg);
+        $this->assertMatchesRegularExpression('/invalid Service provided/', $msg);
     }
     /**
      *  test roboRun
@@ -464,7 +464,7 @@ class ApplicationTest extends LogTestCase
      * @uses \DgfipSI1\Application\Application::getVerbosity
      * @uses \DgfipSI1\Application\Application::setApplicationNameAndVersion
      * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
-     * @uses \DgfipSI1\Application\Application::addSharedCommand
+     * @uses \DgfipSI1\Application\Application::addSharedService
      * @uses \DgfipSI1\Application\Application::discoverPsr4Commands
      * @uses \DgfipSI1\Application\ApplicationContainer
      */
