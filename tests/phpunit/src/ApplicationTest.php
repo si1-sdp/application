@@ -91,7 +91,7 @@ class ApplicationTest extends LogTestCase
      * @uses \DgfipSI1\Application\Application::getVerbosity
      * @uses \DgfipSI1\Application\ApplicationSchema::__construct
      * @uses \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
-     * @uses \DgfipSI1\Application\Application::configureAndRegisterCommands
+     * @uses \DgfipSI1\Application\Application::discoverRoboCommands
      * @uses \DgfipSI1\Application\Application::discoverPsr4Classes
      * @uses \DgfipSI1\Application\Application::findRoboCommands
      * @uses \DgfipSI1\Application\ApplicationContainer
@@ -219,7 +219,7 @@ class ApplicationTest extends LogTestCase
      * @uses   \DgfipSI1\Application\Application::config
      * @uses   \DgfipSI1\Application\Application::getVerbosity
      * @uses   \DgfipSI1\Application\Application::setApplicationNameAndVersion
-     * @uses   \DgfipSI1\Application\Application::configureAndRegisterCommands
+     * @uses   \DgfipSI1\Application\Application::discoverRoboCommands
      * @uses   \DgfipSI1\Application\Application::discoverPsr4Classes
      * @uses   \DgfipSI1\Application\Application::findRoboCommands
      * @uses   \DgfipSI1\Application\ApplicationContainer
