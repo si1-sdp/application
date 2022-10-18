@@ -278,13 +278,21 @@ class Application extends SymfoApp
             if ($this->appType === self::SYMFONY_APPLICATION) {
                 /** @var Command $command */
                 $command = new $commandClass();
-                $defaultName = $command->getName();
-                if (empty($defaultName)) {
+                try {
+                    $serviceDefinition = $this->addSharedService(
+                        $command,
+                        "name",
+                        self::SYMFONY_SUBCLASS,
+                        'symfonyCommand'
+                    );
+                    $commands[] = $serviceDefinition->getAlias();
+                } catch (\LogicException $e) {
                     $logContext['class'] = $commandClass;
-                    $this->logger()->warning("Command name is empty for {commandClass}", $logContext);
-                } else {
-                    $this->addSharedCommand($defaultName, $command);
-                    $commands[] = $defaultName;
+                    $logContext['errorMessage'] = $e->getMessage();
+                    $this->logger()->warning(
+                        "Command could not be added for {commandClass}: {errorMessage}",
+                        $logContext
+                    );
                 }
             } else {
                 /** @var class-string $commandClass */
@@ -301,23 +309,64 @@ class Application extends SymfoApp
             $this->logger()->notice("{count} command(s) found", $logContext);
         }
     }
+
     /**
-     * Add command to container
+     * Add a shared service to the container.
+     * The id of the service is automatically discovered using PHP attributes.
+     * A tag can be automatically added.
      *
-     * @param string        $id
      * @param string|object $concrete
+     * @param string        $attributeNameForId
+     * @param string|null   $subClassRestriction
+     * @param string|null   $tag
      *
      * @return DefinitionInterface
+     *
+     * @throws \LogicException
      */
-    protected function addSharedCommand(string $id, $concrete): DefinitionInterface
-    {
-        if (!is_object($concrete) || !is_subclass_of($concrete, self::SYMFONY_SUBCLASS)) {
-            throw new LogicException("invalid Symfony Command provided");
+    protected function addSharedService(
+        $concrete,
+        string $attributeNameForId = "name",
+        string $subClassRestriction = null,
+        string $tag = null
+    ): DefinitionInterface {
+        if (!is_object($concrete)) {
+            throw new LogicException("invalid Service provided");
         }
-        $ret = $this->container->addShared($id, $concrete);
-        $ret->addTag('symfonyCommand');
+        if ((null === $subClassRestriction) || !is_subclass_of($concrete, $subClassRestriction)) {
+            throw new LogicException(sprintf("invalid Service provided: not subclass of %s", $subClassRestriction));
+        }
+        if (!$attributeNameForId) {
+            throw new LogicException("invalid attribute name provided for service id");
+        }
+        $serviceId = null;
+        try {
+            $attributes = (new \ReflectionClass($concrete::class))->getAttributes();
+            foreach ($attributes as $attribute) {
+                $attributeArguments = $attribute->getArguments();
+                if (array_key_exists($attributeNameForId, $attributeArguments)) {
+                    $serviceId = $attributeArguments[$attributeNameForId];
+                    break;
+                }
+            }
+            if (null === $serviceId) {
+                throw new LogicException(
+                    sprintf(
+                        "invalid service id for class %s, %s attribute argument not found",
+                        $concrete::class,
+                        $attributeNameForId
+                    )
+                );
+            }
+        } catch (\ReflectionException) {
+            throw new LogicException("invalid service id, could not decode attributes");
+        }
+        $serviceDefinition = $this->container->addShared($serviceId, $concrete);
+        if ((null !== $tag) && ("" !== $tag)) {
+            $serviceDefinition->addTag($tag);
+        }
 
-        return $ret;
+        return $serviceDefinition;
     }
 
     /**
