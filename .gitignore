@@ -4,4 +4,6 @@ tests/results/
 tests/tmp/
 vendor/
 examples/*/tests
+diff.sh
+sync.sh
 .idea

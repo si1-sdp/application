@@ -2,7 +2,7 @@
 /*
  * This file is part of DgfipSI1\Application
  */
-namespace DgfipSI1\ApplicationTests\symfonyBadCommand;
+namespace incoherentNameSpace\symfonyBadCommands;
 
 use Composer\Console\Input\InputArgument;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -12,9 +12,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputOption;
 
 /**
- * class UnnamedCommand.php : provides the hello world symfony command
+ * class BadCommand.php
  */
-class UnnamedCommand extends Command
+class BadNamedCommand extends Command
 {
      /**
      * @inheritDoc

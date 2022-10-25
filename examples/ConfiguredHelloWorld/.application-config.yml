@@ -1,0 +1,4 @@
+dgfip_si1:
+    application:
+        name: Configured hello world
+        version: '0.99.0'

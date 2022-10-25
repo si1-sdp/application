@@ -15,6 +15,8 @@ class ApplicationSchema implements ConfigurationInterface
 {
     public const APPLICATION_NAME        = 'dgfip_si1.application.name';
     public const APPLICATION_VERSION     = 'dgfip_si1.application.version';
+    public const APPLICATION_TYPE        = 'dgfip_si1.application.type';
+    public const APPLICATION_NAMESPACE   = 'dgfip_si1.application.commands_namespace';
     public const LOG_DIRECTORY           = 'dgfip_si1.log.directory';
     public const LOG_FILENAME            = 'dgfip_si1.log.filename';
     public const LOG_DATE_FORMAT         = 'dgfip_si1.log.date_format';
@@ -23,17 +25,6 @@ class ApplicationSchema implements ConfigurationInterface
     public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
     public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
 
-    /** @var ConfigurationInterface|null $applicationSchema */
-    protected $applicationSchema;
-    /**
-     * constructor
-     *
-     * @param ConfigurationInterface $schema
-     */
-    public function __construct($schema = null)
-    {
-        $this->applicationSchema = $schema;
-    }
     /**
      * The main configuration tree
      *
@@ -41,26 +32,27 @@ class ApplicationSchema implements ConfigurationInterface
      */
     public function getConfigTreeBuilder()
     {
-        if (null === $this->applicationSchema) {
-            $treeBuilder = new TreeBuilder('application');
-        } else {
-            $treeBuilder = $this->applicationSchema->getConfigTreeBuilder();
-        }
+        $treeBuilder = new TreeBuilder('application');
         $treeBuilder->getRootNode()
             ->children()
                 ->arrayNode('dgfip_si1')
+                    ->addDefaultsIfNotSet()
                     ->children()
                         ->arrayNode('application')
+                            ->addDefaultsIfNotSet()
                             ->children()
                                 ->scalarNode('name')->info("Application name")->end()
                                 ->scalarNode('version')->info("Application version")->end()
+                                ->enumNode('type')->values(['symfony', 'robo'])->defaultValue('symfony')
+                                    ->info('type : symfony or robo')->end()
+                                ->scalarNode('commands_namespace')->defaultValue('Commands')
+                                    ->info("namespace for commands")->end()
                             ->end()
                         ->end()
                         ->arrayNode('log')
                             ->addDefaultsIfNotSet()
                             ->children()
-                                ->scalarNode('directory')->defaultValue('.')
-                                    ->info("Log directory (default = current directory)")->end()
+                                ->scalarNode('directory')->info("Log directory")->end()
                                 ->scalarNode('filename')->info("Log filename")->end()
                                 ->scalarNode('date_format')->defaultValue(self::DEFAULT_DATE_FORMAT)
                                     ->info("Log date format ")->end()
@@ -68,10 +60,10 @@ class ApplicationSchema implements ConfigurationInterface
                                     ->info("Log date format ")->end()
                             ->end()
                         ->end()
+                        ->arrayNode('runtime')
+                            ->scalarPrototype()->end()
+                        ->end()
                     ->end()
-                ->end()
-                ->arrayNode('options')
-                    ->scalarPrototype()->end()
                 ->end()
             ->end();
 

@@ -2,7 +2,7 @@
 /*
  * This file is part of DgfipSI1\Application
  */
-namespace badNameSpace\symfonyBadCommand;
+namespace DgfipSI1\ApplicationTests\symfonyBadCommands;
 
 use Composer\Console\Input\InputArgument;
 use Symfony\Component\Console\Attribute\AsCommand;

@@ -25,28 +25,6 @@ class AppTestConfigSchema implements ConfigurationInterface
     # A string
     this_is_a_string:     ~
     another_string:       ~
-    dgfip_si1:
-        application:
-
-            # Application name
-            name:                 ~
-
-            # Application version
-            version:              ~
-        log:
-
-            # Log directory (default = current directory)
-            directory:            .
-
-            # Log filename
-            filename:             ~
-
-            # Log date format 
-            date_format:          \'Y:m:d-H:i:s\'
-
-            # Log date format 
-            output_format:        "%datetime%|%level_name%|%context.name%|%message%\n"
-    options:              []
 ';
     /**
      * The main configuration tree
