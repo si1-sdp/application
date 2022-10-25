@@ -8,7 +8,6 @@ use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\Application\Exception\ApplicationTypeException;
 use Composer\Autoload\ClassLoader;
-use Composer\Console\Input\InputOption;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
@@ -33,6 +32,7 @@ use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\Output;
 
 /**

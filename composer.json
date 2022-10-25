@@ -15,10 +15,10 @@
   "keywords" : [ "command", "config" ],
   "require" : {
     "php" : ">=8.1",
-    "composer/composer" : "^2.1",
+    "composer/composer" : "^2, >=2.4",
     "consolidation/robo" : "^4.0",
     "league/container" : "^4.0, >=4.2",
-    "dgfip-si1/config-helper": ">=1.0.alpha2",
+    "dgfip-si1/config-helper": ">=1.0.alpha3",
     "monolog/monolog" : "^3.2",
     "symfony/console" : "^6"
   },	
@@ -29,7 +29,7 @@
     "escapestudios/symfony2-coding-standard": "^3.12",
     "phpunit/phpunit": "^9.5, >=9.5.10",
     "mikey179/vfsstream": "^1.6, >=1.6.10",
-    "dgfip-si1/test-logger": "^1.0"
+    "dgfip-si1/test-logger": ">= 1.0.alpha10"
 
   },
   "minimum-stability" : "alpha",
