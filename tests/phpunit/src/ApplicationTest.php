@@ -272,7 +272,8 @@ class ApplicationTest extends LogTestCase
         $msg = '';
         try {
             $cs->invokeArgs($app, []);
-        } catch (ConfigFileNotFoundException $e) {   /** @phpstan-ignore-line */
+            /** @phpstan-ignore-next-line */
+        } catch (ConfigFileNotFoundException $e) {
             $msg = $e->getMessage();
         }
         $this->assertMatchesRegularExpression("/Configuration file '.*' not found/", $msg);
@@ -434,15 +435,15 @@ class ApplicationTest extends LogTestCase
     }
 
     /**
-     * Test configure commands
+     * Test discover commands
      *
-     * @covers \DgfipSI1\Application\Application::configureCommands
+     * @covers \DgfipSI1\Application\Application::discoverCommands
      *
      */
-    public function testConfigureCommands(): void
+    public function testDiscoverCommands(): void
     {
         $app   = new Application($this->loader);
-        $cc = $this->class->getMethod('configureCommands');
+        $cc = $this->class->getMethod('discoverCommands');
         $cc->setAccessible(true);
         $ic = $this->class->getProperty('intConfig');
         $ic->setAccessible(true);
@@ -453,7 +454,7 @@ class ApplicationTest extends LogTestCase
         $symfonyCmd = $this->class->getConstant('SYMFONY_SUBCLASS');
 
         // we want discover log to check namespace
-        $this->initLogger($app, ['configureCommands', 'discoverPsr4Classes']);
+        $this->initLogger($app, ['discoverCommands', 'discoverPsr4Classes']);
 
 
         /* TEST 1 -  appType to robo, no appType in configuration */
@@ -470,7 +471,8 @@ class ApplicationTest extends LogTestCase
         $msg = '';
         try {
             $cc->invokeArgs($app, []);
-        } catch (ApplicationTypeException $e) {   /** @phpstan-ignore-line */
+            /** @phpstan-ignore-next-line */
+        } catch (ApplicationTypeException $e) {
             $msg = $e->getMessage();
         }
         $this->assertMatchesRegularExpression('/Type mismatched - findRoboCommands lauched/', $msg);
@@ -545,7 +547,8 @@ class ApplicationTest extends LogTestCase
         $msg = '';
         try {
             $asc->invokeArgs($app, [ "string" , 'description', 'myTag']);
-        } catch (LogicException $e) {   /** @phpstan-ignore-line */
+            /** @phpstan-ignore-next-line */
+        } catch (LogicException $e) {
             $msg = $e->getMessage();
         }
         $this->assertEquals('invalid Service provided', $msg);
@@ -554,7 +557,8 @@ class ApplicationTest extends LogTestCase
         $msg = '';
         try {
             $asc->invokeArgs($app, [ $object , 'unknown', 'myTag']);
-        } catch (LogicException $e) {   /** @phpstan-ignore-line */
+            /** @phpstan-ignore-next-line */
+        } catch (LogicException $e) {
             $msg = $e->getMessage();
         }
         $this->assertMatchesRegularExpression('/invalid service id/', $msg);

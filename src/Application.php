@@ -47,6 +47,8 @@ class Application extends SymfoApp
     private const ROBO_SUBCLASS    = '\Robo\Tasks';
     private const SYMFONY_CMD_TAG  = 'symfonyCommand';
 
+    protected const DEFAULT_APP_CONFIG_FILE = '.application-config.yml';
+
     /** @var string $appName */
     private $appName;
     /** @var string $appVersion */
@@ -115,13 +117,13 @@ class Application extends SymfoApp
     public function logger()
     {
         if ($this->container->has('logger')) {
-            /** @var Monolog $logger */
-            $logger = $this->container->get('logger');
+            /** @var LoggerInterface $lg */
+            $lg = $this->container->get('logger');
         } else {
-            $logger = $this->logger;
+            $lg = $this->logger;
         }
 
-        return $logger;
+        return $lg;
     }
     /**
      * Get the container object
@@ -203,19 +205,19 @@ class Application extends SymfoApp
     public function go($configOptions = 0)
     {
         $this->finalize();
+        $logContext = ['name' => 'go'];
         $statusCode = 0;
-        switch ($this->appType) {
-            case self::ROBO_APPLICATION:
-                // Instantiate Robo Runner.
-                $runner = new RoboRunner();
-                $runner->setContainer($this->container);
-                /** @phpstan-ignore-next-line */
-                $statusCode  = $runner->run($this->input, $this->output, $this, $this->commandClasses);
-                break;
-            case self::SYMFONY_APPLICATION:
-                $name = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
-                $statusCode = parent::run($this->input, $this->output);
-                break;
+        if (self::ROBO_APPLICATION === $this->appType) {
+            // Instantiate Robo Runner.
+            $runner = new RoboRunner();
+            $runner->setContainer($this->container);
+            /** @phpstan-ignore-next-line */
+            $statusCode  = $runner->run($this->input, $this->output, $this, $this->commandClasses);
+            $this->logger->notice("Launching robo command", $logContext);
+        } elseif (self::SYMFONY_APPLICATION === $this->appType) {
+            $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
+            $this->logger->notice("Launching symfony command '{cmd_name}'", $logContext);
+            $statusCode = parent::run($this->input, $this->output);
         }
 
         return $statusCode;
@@ -228,30 +230,31 @@ class Application extends SymfoApp
      */
     protected function finalize()
     {
-        // Setup configuration
+        // Setup --config option and handle it to load configuration
         $this->configSetup();
 
-        // Create application
+        // set application's name and version
         $this->setApplicationNameAndVersion();
 
-        // configure commands
-        $this->configureCommands();
+        // discover commands
+        $this->discoverCommands();
 
         // Create and configure container.
-        Robo::configureContainer($this->container, $this, $this->config, $this->input, $this->output);
+        $cl = $this->classLoader;
+        Robo::configureContainer($this->container, $this, $this->config, $this->input, $this->output, $cl);
 
         // add verbosity to container
         $verbosity = $this->getVerbosity($this->input);
         $this->container->addShared('verbosity', $verbosity);
-
         // configure and setup logger
+
         if (!$this->container->has('roboLogger')) {
             $this->container->extend('logger')->setAlias('roboLogger');
         }
-        $logger = $this->buildLogger();
+        $lg = $this->buildLogger();
         // didn't find a way to replace a service => rename old and create new
         // FIXME add replace() to ApplicationContainer
-        $this->container->addShared('logger', $logger);
+        $this->container->addShared('logger', $lg);
         Robo::finalizeContainer($this->container);
     }
     /**
@@ -264,9 +267,9 @@ class Application extends SymfoApp
         $internalConfSchema = new ApplicationSchema();
         $this->intConfig    = new ConfigHelper($internalConfSchema);
         $defaultConfigFiles = [
-            __DIR__.DIRECTORY_SEPARATOR.".application-config.yml",
-            $_SERVER['PWD'].DIRECTORY_SEPARATOR.".application-config.yml",
-            getcwd().DIRECTORY_SEPARATOR.".application-config.yml",
+            __DIR__.DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $_SERVER['PWD'].DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            getcwd().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
         ];
         $logContext = [ 'name' => 'new Application()' ];
         foreach ($defaultConfigFiles as $file) {
@@ -320,7 +323,7 @@ class Application extends SymfoApp
      *
      * @return void
      */
-    protected function configureCommands()
+    protected function discoverCommands()
     {
 
         $configuredType       = $this->intConfig->getRaw(ApplicationSchema::APPLICATION_TYPE);
@@ -362,9 +365,9 @@ class Application extends SymfoApp
     protected function discoverRoboCommands(string $nameSpace, string $subClass): array
     {
         $logContext = [ 'name' => 'discoverRoboCommands' ];
-        $commandClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
+        $cClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
         $commands = [];
-        foreach ($commandClasses as $commandClass) {
+        foreach ($cClasses as $commandClass) {
             /** @var class-string $commandClass */
             $reflectionClass = new \ReflectionClass($commandClass);
             foreach ($reflectionClass->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
@@ -373,12 +376,12 @@ class Application extends SymfoApp
                 }
             }
         }
-        if (count($commands) > 0) {
+        if (!empty($commands)) {
             $logContext['count'] = count($commands);
             $this->logger()->notice("{count} robo command(s) found", $logContext);
         }
 
-        return $commandClasses;
+        return $cClasses;
     }
 
 

@@ -6,4 +6,5 @@ vendor/
 examples/*/tests
 diff.sh
 sync.sh
+.vscode
 .idea
