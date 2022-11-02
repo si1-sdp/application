@@ -175,11 +175,9 @@ class Application extends SymfoApp
     /**
      * Finalize application
      *
-     * @param int $configOptions
-     *
      * @return int
      */
-    public function go($configOptions = 0)
+    public function go()
     {
         $this->finalize();
         // Check if appType has been set, probably during finalize when discovering commands
@@ -207,11 +205,9 @@ class Application extends SymfoApp
     /**
      * finalize application before run
      *
-     * @param integer $configOptions
-     *
      * @return void
      */
-    protected function finalize($configOptions = 0)
+    protected function finalize()
     {
         $this->setApplicationNameAndVersion();
         /** @var \Symfony\Component\Console\Command\Command $command */
@@ -219,7 +215,7 @@ class Application extends SymfoApp
             $this->add($command);
         }
 
-        $this->config->build($configOptions);
+        $this->config->build();
         // Create and configure container.
         Robo::configureContainer(
             $this->container,
