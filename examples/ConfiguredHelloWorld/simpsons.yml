@@ -1,0 +1,35 @@
+people:
+  "hs" :
+    title: Mr
+    name: Simpson
+    first_name: Homer
+  "bs" :
+    title: Mr
+    name: Simpson
+    first_name: Bart
+  "ms" :
+    title: Mrs
+    name: Simpson
+    first_name: Marge
+  "ls" :
+    title: Ms
+    name: Simpson
+    first_name: Lisa
+  "cm" :
+    title: Mr
+    name: Montgomery
+    first_name: Charles
+  "an" :
+    title: Mr
+    name: Nahasapeemapetilon
+    first_name: Apu
+  "nf" :
+    title: Mr
+    name: Flanders
+    first_name: Ned
+  "ek" :
+    title: Mrs
+    name: Krapabelle
+    first_name: Edna
+options:
+    user: hs

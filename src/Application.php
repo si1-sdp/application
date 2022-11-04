@@ -4,13 +4,22 @@
  */
 namespace DgfipSI1\Application;
 
+use DgfipSI1\Application\ApplicationSchema as CONF;
+use DgfipSI1\Application\Config\ApplicationAwareInterface;
+use DgfipSI1\Application\Config\BaseSchema;
+use DgfipSI1\Application\Contracts\ConfigAwareInterface;
+use DgfipSI1\Application\Contracts\LoggerAwareInterface;
+use DgfipSI1\Application\Listeners\InputOptionsToConfig;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
-use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\Application\Exception\ApplicationTypeException;
+use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
+
+use DgfipSI1\ConfigHelper\ConfigHelper;
+
 use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
-use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
+use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -19,7 +28,6 @@ use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\PsrHandler;
 use Psr\Log\LoggerInterface;
-use Psr\Log\LogLevel;
 use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
 use Robo\Robo;
 use Robo\Runner as RoboRunner;
@@ -31,23 +39,24 @@ use Symfony\Component\Console\Exception\LogicException;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\Output;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
  * class Application
  */
 class Application extends SymfoApp
 {
-    protected const ROBO_APPLICATION    = 'robo';
-    protected const SYMFONY_APPLICATION = 'symfony';
+    public const DEFAULT_MAP_ROOT           = 'options';
+
+    protected const ROBO_APPLICATION        = 'robo';
+    protected const SYMFONY_APPLICATION     = 'symfony';
+    protected const DEFAULT_APP_CONFIG_FILE = '.application-config.yml';
 
     private const SYMFONY_SUBCLASS = '\Symfony\Component\Console\Command\Command';
     private const ROBO_SUBCLASS    = '\Robo\Tasks';
     private const SYMFONY_CMD_TAG  = 'symfonyCommand';
-
-    protected const DEFAULT_APP_CONFIG_FILE = '.application-config.yml';
 
     /** @var string $appName */
     private $appName;
@@ -67,7 +76,7 @@ class Application extends SymfoApp
     private $commandClasses;
     /** @var ConfigHelper $config */
     private $config;
-    /** @var ConfigHelper $intConfig */
+    /** @var ConfigHelper $intConfig Application internal configuration */
     private $intConfig;
     /** @var LoggerInterface $logger */
     private $logger;
@@ -75,11 +84,10 @@ class Application extends SymfoApp
     /**
      * constructor
      *
-     * @param ClassLoader                 $classLoader
-     * @param array<string>               $argv
-     * @param ConfigurationInterface|null $confSchema
+     * @param ClassLoader   $classLoader
+     * @param array<string> $argv
      */
-    public function __construct($classLoader, $argv = [], $confSchema = null)
+    public function __construct($classLoader, $argv = [])
     {
         parent::__construct();
 
@@ -95,7 +103,7 @@ class Application extends SymfoApp
         // setup app internal configuration
         $this->setupApplicationConfig();
 
-        $this->config    = new ConfigHelper($confSchema);
+        $this->config    = new ConfigHelper(new BaseSchema());
         $this->container = new ApplicationContainer();
         $this->classLoader = $classLoader;
     }
@@ -116,14 +124,7 @@ class Application extends SymfoApp
      */
     public function logger()
     {
-        if ($this->container->has('logger')) {
-            /** @var LoggerInterface $lg */
-            $lg = $this->container->get('logger');
-        } else {
-            $lg = $this->logger;
-        }
-
-        return $lg;
+        return $this->logger;
     }
     /**
      * Get the container object
@@ -176,11 +177,12 @@ class Application extends SymfoApp
         }
         $this->appType = self::ROBO_APPLICATION;
         $this->commandClasses = $this->discoverRoboCommands($relativeNamespace, self::ROBO_SUBCLASS);
+        $this->intConfig->set(CONF::APPLICATION_NAMESPACE, $relativeNamespace);
     }
     /** sets the list of classes containing symfony commands
      *
-     * @param string $relativeNamespace
-     * @param string $subClass
+     * @param string       $relativeNamespace
+     * @param class-string $subClass
      *
      * @return void
      *
@@ -194,9 +196,10 @@ class Application extends SymfoApp
         }
         $this->appType = self::SYMFONY_APPLICATION;
         $this->configureAndRegisterServices($relativeNamespace, $subClass, self::SYMFONY_CMD_TAG, "name");
+        $this->intConfig->set(CONF::APPLICATION_NAMESPACE, $relativeNamespace);
     }
     /**
-     * Finalize application
+     * run application
      *
      * @param int $configOptions
      *
@@ -211,9 +214,10 @@ class Application extends SymfoApp
             // Instantiate Robo Runner.
             $runner = new RoboRunner();
             $runner->setContainer($this->container);
+            //print(implode("\n", array_keys($this->container->getDefinitions()))."\n\n");
+            $this->logger->notice("Launching robo command", $logContext);
             /** @phpstan-ignore-next-line */
             $statusCode  = $runner->run($this->input, $this->output, $this, $this->commandClasses);
-            $this->logger->notice("Launching robo command", $logContext);
         } elseif (self::SYMFONY_APPLICATION === $this->appType) {
             $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
             $this->logger->notice("Launching symfony command '{cmd_name}'", $logContext);
@@ -230,7 +234,7 @@ class Application extends SymfoApp
      */
     protected function finalize()
     {
-        // Setup --config option and handle it to load configuration
+        // load configuration files - handles --config and intConfig->get(dgfip_si1.configuration.files)
         $this->configSetup();
 
         // set application's name and version
@@ -239,23 +243,21 @@ class Application extends SymfoApp
         // discover commands
         $this->discoverCommands();
 
+        $logger = $this->buildLogger();
+
         // Create and configure container.
-        $cl = $this->classLoader;
-        Robo::configureContainer($this->container, $this, $this->config, $this->input, $this->output, $cl);
-
-        // add verbosity to container
-        $verbosity = $this->getVerbosity($this->input);
-        $this->container->addShared('verbosity', $verbosity);
-        // configure and setup logger
-
-        if (!$this->container->has('roboLogger')) {
-            $this->container->extend('logger')->setAlias('roboLogger');
+        if (self::ROBO_APPLICATION === $this->appType) {
+            Robo::configureContainer($this->container, $this, $this->config, $this->input, $this->output);
+            // if (!$this->container->has('roboLogger')) {
+            //     $this->container->extend('logger')->setAlias('roboLogger');
+            // }
+            // $this->container->addShared('logger', $logger);
+            Robo::finalizeContainer($this->container);
+        } else {
+            $this->configureSymfonyContainer($logger);
         }
-        $lg = $this->buildLogger();
-        // didn't find a way to replace a service => rename old and create new
-        // FIXME add replace() to ApplicationContainer
-        $this->container->addShared('logger', $lg);
-        Robo::finalizeContainer($this->container);
+
+        $this->setupOptions();
     }
     /**
      * setup configuration if file exists
@@ -301,7 +303,7 @@ class Application extends SymfoApp
     {
         if (!$this->appName) {
             /** @var string $appName */
-            $appName = $this->intConfig->get(ApplicationSchema::APPLICATION_NAME);
+            $appName = $this->intConfig->get(CONF::APPLICATION_NAME);
             $this->appName = $appName;
             if (!$this->appName) {
                 throw new NoNameOrVersionException("Application name missing");
@@ -309,7 +311,7 @@ class Application extends SymfoApp
         }
         if (!$this->appVersion) {
             /** @var string $appVersion */
-            $appVersion = $this->intConfig->get(ApplicationSchema::APPLICATION_VERSION);
+            $appVersion = $this->intConfig->get(CONF::APPLICATION_VERSION);
             $this->appVersion = $appVersion;
             if (!$this->appVersion) {
                 throw new NoNameOrVersionException("Version missing");
@@ -326,9 +328,9 @@ class Application extends SymfoApp
     protected function discoverCommands()
     {
 
-        $configuredType       = $this->intConfig->getRaw(ApplicationSchema::APPLICATION_TYPE);
+        $configuredType       = $this->intConfig->getRaw(CONF::APPLICATION_TYPE);
         /** @var string $configuredNamespace */
-        $configuredNamespace  = $this->intConfig->get(ApplicationSchema::APPLICATION_NAMESPACE);
+        $configuredNamespace  = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
 
         if (null !== $this->appType) {
             /* findCommands method has been called - just check it's consistent with configuration */
@@ -339,7 +341,7 @@ class Application extends SymfoApp
         } else {
             // no type - means we haven't called find[Robo|Symfony]Commands(namespace)
             // see what we can do from configuration - get the configured default value
-            $type = $configuredType ?? $this->intConfig->get(ApplicationSchema::APPLICATION_TYPE);
+            $type = $configuredType ?? $this->intConfig->get(CONF::APPLICATION_TYPE);
             if (self::ROBO_APPLICATION === $type) {
                 $this->findRoboCommands($configuredNamespace);
             } else {
@@ -355,14 +357,14 @@ class Application extends SymfoApp
     /**
      * Discovers robo commands
      *
-     * @param string $nameSpace
-     * @param string $subClass
+     * @param string       $nameSpace
+     * @param class-string $subClass
 
      * @return array<string>
      *
      * @throws \ReflectionException
      */
-    protected function discoverRoboCommands(string $nameSpace, string $subClass): array
+    protected function discoverRoboCommands($nameSpace, $subClass): array
     {
         $logContext = [ 'name' => 'discoverRoboCommands' ];
         $cClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
@@ -388,10 +390,10 @@ class Application extends SymfoApp
     /**
      * discovers classes in a namespace and register each instance to the container
      *
-     * @param string      $nameSpace
-     * @param string      $subClass
-     * @param string|null $tag
-     * @param string      $attributeNameForId
+     * @param string       $nameSpace
+     * @param class-string $subClass
+     * @param string|null  $tag
+     * @param string       $attributeNameForId
 
      * @return array<string>
      *
@@ -468,16 +470,18 @@ class Application extends SymfoApp
     /**
      * Discovers commands that are PSR4 auto-loaded.
      *
-     * @param string      $namespace
-     * @param string|null $subClassName
+     * @param string            $namespace
+     * @param class-string|null $dependency Filter classes on class->implementsInterface(dependency)
+     *                                      or class->isSubClassOf(dependency)
+     * @param bool              $silent     Do not warn if no class found
      *
      * @return array<string>
      *
      * @throws \ReflectionException
      */
-    protected function discoverPsr4Classes($namespace, $subClassName): array
+    protected function discoverPsr4Classes($namespace, $dependency, $silent = false): array
     {
-        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace, 'subClass' => $subClassName ];
+        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace, 'dependency' => $dependency ];
         // discovers classes that are in a directory ($namespace) imediatly under 'src'
         $classes = (new RelativeNamespaceDiscovery($this->classLoader))
             ->setRelativeNamespace($namespace)
@@ -486,38 +490,88 @@ class Application extends SymfoApp
             $logContext['class'] = $class;
             $this->logger()->debug("1/2 - search {namespace} namespace - found {class}", $logContext);
         }
-        $this->logger()->notice("1/2 - ".count($classes)." classe(s) found.", $logContext);
-
-        $filteredClasses = array_filter($classes, function ($class) use ($subClassName, $logContext): bool {
-            /** @var class-string $class */
-            /** @var class-string $subClassName */
+        $this->logger()->info("1/2 - ".count($classes)." classe(s) found.", $logContext);
+        $filteredClasses = [];
+        foreach ($classes as $class) {
             try {
-                $reflectionClass = new \ReflectionClass($class);
-                $subClass = new \ReflectionClass($subClassName);
-                /** @phpstan-ignore-next-line */
+                /** @var class-string $class */
+                $refClass = new \ReflectionClass($class);
+                /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
             } catch (\ReflectionException $e) {
                 $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
-
-                return false;
+                continue;
             }
-
-            return $reflectionClass->isSubclassOf($subClass)
-                && !$reflectionClass->isAbstract()
-                && !$reflectionClass->isInterface()
-                && !$reflectionClass->isTrait();
-        });
-        if (count($filteredClasses) === 0) {
-            $this->logger()->warning("No classes subClassing {subClass} found in namespace '{namespace}'", $logContext);
+            if ($refClass->isAbstract() || $refClass->isInterface() || $refClass->isTrait()) {
+                continue;
+            }
+            if (null === $dependency) {
+                $filteredClasses[] = $class;
+            } else {
+                try {
+                    $depRef = new \ReflectionClass($dependency);
+                    /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
+                } catch (\ReflectionException $e) {
+                    $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
+                    continue;
+                }
+                if (($depRef->isInterface() && $refClass->implementsInterface($depRef)) ||
+                     $refClass->isSubclassOf($depRef)) {
+                    $filteredClasses[] = $class;
+                }
+            }
+        }
+        if (empty($filteredClasses) && false === $silent) {
+            $msg = "No classes subClassing or implementing {dependency} found in namespace '{namespace}'";
+            $this->logger()->warning($msg, $logContext);
         } else {
             foreach ($filteredClasses as $class) {
                 $logContext['class'] = $class;
                 $this->logger()->debug("2/2 - Filter : {class} matches", $logContext);
             }
             $count = count($filteredClasses);
-            $this->logger()->notice("2/2 - $count classe(s) found in namespace '{namespace}'", $logContext);
+            $this->logger()->info("2/2 - $count classe(s) found in namespace '{namespace}'", $logContext);
         }
 
         return $filteredClasses;
+    }
+    /**
+     * Configure the container for symfony applications
+     *
+     * @param LoggerInterface $logger
+     *
+     * @return void
+     */
+    protected function configureSymfonyContainer($logger)
+    {
+
+            // Self-referential container reference for the inflector
+            $this->container->add('container', $this->container);
+
+            $this->config->set('options.decorated', $this->output->isDecorated());
+            $this->config->set('options.interactive', $this->input->isInteractive());
+
+            $this->container->addShared('application', $this);
+            $this->container->addShared('config', $this->config);
+            $this->container->addShared('input', $this->input);
+            $this->container->addShared('output', $this->output);
+            //self::addShared($container, 'outputAdapter', \Robo\Common\OutputAdapter::class);
+            $this->container->addShared('classLoader', $this->classLoader);
+            $this->container->addShared('logger', $this->logger);
+            $this->container->addShared('inputOptionsToConfig', InputOptionsToConfig::class)
+                ->addMethodCall('setApplication', ['application']);
+            $this->container->addShared('hookManager', \Consolidation\AnnotatedCommand\Hooks\HookManager::class)
+                ->addMethodCall('addCommandEvent', ['inputOptionsToConfig']);
+            $this->container->addShared('eventDispatcher', \Symfony\Component\EventDispatcher\EventDispatcher::class)
+                ->addMethodCall('addSubscriber', ['hookManager']);
+            $this->container->addShared('logger', $logger);
+            // Make sure the application is appropriately initialized.
+            $this->setAutoExit(false);
+
+            $this->container->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
+            $this->container->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
+            /** @var EventDispatcherInterface $dispatcher */
+            $dispatcher = $this->container->get('eventDispatcher');
+            $this->setDispatcher($dispatcher);
     }
     /**
      * Sets up the configuration
@@ -526,13 +580,25 @@ class Application extends SymfoApp
      */
     protected function configSetup()
     {
-        $definition = $this->getDefinition();
-        $definition->addOption(new InputOption('--config', null, InputOption::VALUE_REQUIRED, 'Configuration file.'));
+        $this->setupConfigInputOptions();   /* add --config to options                           */
+        $this->setupConfigSchema();         /* load classes implementing configAwareInterface    */
+        $this->loadConfigFiles();           /* load configuration files                          */
         try {
-            $this->input->bind($definition);
-        } catch (RuntimeException $e) {
-            // Errors must be ignored, full binding/validation happens later when the command is known.
+            $this->config->build();
+        } catch (\exception $e) {
+            $this->renderThrowable(new RuntimeException($e->getMessage()), $this->output);
+            exit(2);
         }
+    }
+    /**
+     * load all configuration files
+     *
+     * @return void
+     */
+    protected function loadConfigFiles()
+    {
+        $logCtx = [ 'name' => 'loadConfigFiles'];
+        /* Load configuration specified in --config */
         if (null !== $this->input->getOption('config')) {
             /** @var string $filename */
             $filename = $this->input->getOption('config');
@@ -541,9 +607,130 @@ class Application extends SymfoApp
             } else {
                 throw new ConfigFileNotFoundException(sprintf("Configuration file '%s' not found", $filename));
             }
+        } else {
+        /* Load default configuration */
+            /** @var string $directory */
+            $directory = $this->intConfig->get(CONF::CONFIG_DIR) ?? '.';
+            $directory = ''.realpath($directory);
+            if (!is_dir($directory)) {
+                throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $directory));
+            }
+            /** see if we asked for this file or if it is a default configuration */
+            $askedFiles = !empty($this->intConfig->getRaw(CONF::CONFIG_FILES));
+            /** @var array<string> $configuredFiles */
+            $configuredFiles = $this->intConfig->get(CONF::CONFIG_FILES);
+            foreach ($configuredFiles as $file) {
+                $logCtx['file'] = $file;
+                $fullPath = $directory.DIRECTORY_SEPARATOR.$file;
+                if (file_exists($fullPath)) {
+                    $this->config->addFile($fullPath);
+                } else {
+                    if ($askedFiles) {
+                        throw new ConfigFileNotFoundException(sprintf("Config file '%s' not found", $file));
+                    }
+                    $this->logger()->info("Default config file {file} not found", $logCtx);
+                }
+            }
         }
-        $this->config->build();
     }
+    /**
+     * - add all config schemas from commands and global to have a full schema
+     * - add global options
+     *
+     * @return void
+     */
+    protected function setupConfigSchema()
+    {
+        /** @var string $namespace */
+        $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
+        $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
+        foreach ($classes as $class) {
+            /** @var ApplicationAwareInterface $configurator */
+            $configurator = new $class();
+            $this->config->addSchema($configurator);
+        }
+    }
+    /**
+     * setup Options - add options defined in discovered ApplicationAwareInterface classes
+     *
+     * @return void
+     */
+    protected function setupOptions()
+    {
+        /** @var string $namespace */
+        $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
+        $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
+        foreach ($classes as $class) {
+            /** @var ApplicationAwareInterface $configurator */
+            $configurator = new $class();
+            if (is_subclass_of($class, Command::class)) {
+                $name = '';
+                $attributes = (new \ReflectionClass($class))->getAttributes();
+                foreach ($attributes as $attribute) {
+                    $attributeArguments = $attribute->getArguments();
+                    if (array_key_exists('name', $attributeArguments)) {
+                        $name = $attributeArguments['name'];
+                        break;
+                    }
+                }
+                if (is_string($name) && $name === $this->getCommandName($this->input)) {
+                    /** @var Command $command */
+                    //print "COMMAND $name\n";
+                    $command = $this->container->get($name);
+                    $definition = $command->getDefinition();
+                } else {
+                    continue;
+                }
+            } else {
+                //print "APPLICATION\n";
+                $definition = $this->getDefinition();
+            }
+            foreach ($configurator->getConfigOptions() as $option) {
+                //print "  Adding ".$option->getOption()->getName()."\n";
+                $definition->addOption($option->getOption());
+                // if (null !== $option->getMapping()) {
+                //     $name = $option->getOption()->getName();
+                //     $this->optMap[$name] = $option->getMapping();
+                // }
+            }
+        }
+        $this->config->setActiveContext(ConfigOverlay::PROCESS_CONTEXT);
+    }
+    /**
+     * add --config and --add-config input options #FIXME : test with robo
+     *
+     * @return void
+     */
+    protected function setupConfigInputOptions()
+    {
+        $definition = $this->getDefinition();
+        $definition->addOption(new InputOption(
+            '--config',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'Specify configuration file (replace default configuration file).'
+        ));
+        $definition->addOption(new InputOption(
+            '--add-config',
+            null,
+            InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+            'Specify additional configuration files (in increasing priority order).'
+        ));
+        $definition->addOption(new InputOption(
+            '--define',
+            '-D',
+            InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+            'define config key value (example: -Doptions.user=foo)'
+        ));
+        try {
+            $this->input->bind($definition);
+        } catch (RuntimeException $e) {
+            // Errors must be ignored, full binding/validation happens later when the command is known.
+        }
+
+        return;
+    }
+
     /**
      * Detect verbosity specified on command line
      *
@@ -591,7 +778,7 @@ class Application extends SymfoApp
             OutputInterface::VERBOSITY_DEBUG         => MonLvl::fromName('DEBUG'),
         ];
         // see if we have a log file and initialise monolog accordingly
-        $ld = $this->config->get(ApplicationSchema::LOG_DIRECTORY);
+        $ld = $this->intConfig->get(CONF::LOG_DIRECTORY);
         if (is_string($ld)) {
             if (!file_exists($ld)) {
                 set_error_handler(function ($errno, $errstr) use ($ld) {
@@ -600,7 +787,7 @@ class Application extends SymfoApp
                 mkdir($ld);
                 restore_error_handler();
             }
-            $logfile = $this->config->get(ApplicationSchema::LOG_FILENAME);
+            $logfile = $this->intConfig->get(CONF::LOG_FILENAME);
             if (!is_string($logfile)) {
                 $logfile = "$this->appName.log";
             }
@@ -608,24 +795,23 @@ class Application extends SymfoApp
             $this->logger()->notice("starting file logger. Filename = {file}", $logContext);
             $sh = new StreamHandler("$ld/$logfile", MonLvl::fromName('DEBUG'));
             $sh->pushProcessor(new PsrLogMessageProcessor());
-            $dateFormat = ApplicationSchema::DEFAULT_DATE_FORMAT;
-            if (is_string($this->config->get(ApplicationSchema::LOG_DATE_FORMAT))) {
-                $dateFormat = $this->config->get(ApplicationSchema::LOG_DATE_FORMAT);
+            $dateFormat = CONF::DEFAULT_DATE_FORMAT;
+            if (is_string($this->intConfig->get(CONF::LOG_DATE_FORMAT))) {
+                $dateFormat = $this->intConfig->get(CONF::LOG_DATE_FORMAT);
             }
             // the default output format is "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
             // change it to our needs.
-            $outputFormat = ApplicationSchema::DEFAULT_OUTPUT_FORMAT;
-            if (is_string($this->config->get(ApplicationSchema::LOG_OUTPUT_FORMAT))) {
-                $outputFormat = $this->config->get(ApplicationSchema::LOG_OUTPUT_FORMAT);
+            $outputFormat = CONF::DEFAULT_OUTPUT_FORMAT;
+            if (is_string($this->intConfig->get(CONF::LOG_OUTPUT_FORMAT))) {
+                $outputFormat = $this->intConfig->get(CONF::LOG_OUTPUT_FORMAT);
             }
             $formatter = new LineFormatter($outputFormat, $dateFormat);
             $sh->setFormatter($formatter);
             $logger->pushHandler($sh);
         }
-        /** @var \Psr\Log\LoggerInterface $containerLogger */
-        $containerLogger = $this->container->get('roboLogger');
-        $consoleHandler = new PsrHandler($containerLogger, $monologLevels[$this->container->get('verbosity')]);
+        $consoleHandler = new PsrHandler($this->logger, $monologLevels[$this->getVerbosity($this->input)]);
         $logger->pushHandler($consoleHandler);
+        $this->logger = $logger;
 
         return $logger;
     }

@@ -1,0 +1,11 @@
+people:
+  "JSmith" :
+    title: Mr
+    name: Smith
+    first_name: John
+  "JDoe" :
+    title: Ms
+    name: Doe
+    first_name: Jane
+options:
+    user: JSmith

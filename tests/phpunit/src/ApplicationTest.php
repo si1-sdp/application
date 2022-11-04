@@ -5,6 +5,7 @@
  */
 namespace DgfipSI1\ApplicationTests;
 
+use \Mockery;
 use Composer\Autoload\ClassLoader;
 use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\Application;
@@ -13,13 +14,11 @@ use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\ApplicationTypeException;
 use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
-use DgfipSI1\ApplicationTests\AppTestConfigSchema;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use org\bovigo\vfs\vfsStream;
 use org\bovigo\vfs\vfsStreamDirectory;
-use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Console\Exception\LogicException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -32,7 +31,10 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @uses \DgfipSI1\Application\Application
  * @uses \DgfipSI1\Application\ApplicationSchema
  * @uses \DgfipSI1\Application\ApplicationContainer
- *
+ * @uses \DgfipSI1\Application\Config\BaseSchema
+ * @uses \DgfipSI1\Application\Listeners\InputOptionsToConfig
+ * @uses \DgfipSI1\Application\Contracts\ConfigAwareTrait
+ * @uses \DgfipSI1\Application\Contracts\LoggerAwareTrait
  */
 class ApplicationTest extends LogTestCase
 {
@@ -88,8 +90,7 @@ class ApplicationTest extends LogTestCase
      *  test constructor
      *
      * @covers \DgfipSI1\Application\Application::__construct
-     * @covers \DgfipSI1\Application\ApplicationSchema::getConfigTreeBuilder
-     *
+     * @covers \DgfipSI1\Application\Config\BaseSchema::getConfigTreeBuilder
      */
     public function testConstructor(): void
     {
@@ -103,6 +104,7 @@ class ApplicationTest extends LogTestCase
         $configProp->setAccessible(true);
 
         $app = new Application($this->loader);
+        /** build to force getConfigTreeBuilder launching */
         $app->config()->build();
         $input = $inputProp->getValue($app);
         $this->assertInstanceOf('\Symfony\Component\Console\Input\ArgvInput', $input);
@@ -112,11 +114,6 @@ class ApplicationTest extends LogTestCase
         $this->assertInstanceOf(ApplicationContainer::class, $container);
         $config = $configProp->getValue($app);
         $this->assertInstanceOf('DgfipSI1\ConfigHelper\ConfigHelper', $config);
-
-        $schema    = new AppTestConfigSchema();
-        $app = new Application($this->loader, confSchema: $schema);
-        $app->config()->build();
-        $this->assertEquals(AppTestConfigSchema::DUMPED_SCHEMA, $app->config()->dumpSchema());
     }
     /**
      * @covers DgfipSI1\Application\Application::setupApplicationConfig
@@ -183,10 +180,6 @@ class ApplicationTest extends LogTestCase
         $app = new Application($this->loader);
 
         $this->assertInstanceOf(\Consolidation\Log\Logger::class, $app->logger());
-        $monolog = new \Monolog\Logger('test');
-        $app->container()->addShared('logger', $monolog);
-        $this->assertInstanceOf(\Monolog\Logger::class, $app->logger());
-
         $container = $app->container();
         $this->assertInstanceOf(ApplicationContainer::class, $container);
         $config = $app->config();
@@ -260,7 +253,7 @@ class ApplicationTest extends LogTestCase
         $opt = $app->getDefinition()->getOption('config');
         $this->assertTrue($opt->isValueRequired());
 
-        /* TEST 2 - Bad input (no value) */
+        /* TEST 2 - Bad input (no value for --config) */
         $app = new Application($this->loader, [ 'test', '--config' ]);
         $this->initLogger($app, ['configSetup']);
         $cs->invokeArgs($app, []);
@@ -280,6 +273,7 @@ class ApplicationTest extends LogTestCase
 
         /* TEST 4 - Load existing file */
         file_put_contents($configFile, "foo:\n  bar: 999\n");
+        $app->config()->setCheckOption(false);  // don't check config
         $cs->invokeArgs($app, []);
         $this->assertEquals(999, $app->config()->get('foo.bar'));
     }
@@ -372,25 +366,28 @@ class ApplicationTest extends LogTestCase
         $root = vfsStream::setup();
         $bl = $this->class->getMethod('buildLogger');
         $bl->setAccessible(true);
-        $fin = $this->class->getMethod('finalize');
-        $fin->setAccessible(true);
         $ic = $this->class->getproperty('intConfig');
         $ic->setAccessible(true);
+        $anv = $this->class->getMethod('setApplicationNameAndVersion');
+        $anv->setAccessible(true);
         $app = new Application($this->loader);
+
         /** @var ConfigInterface $conf */
         $conf = $ic->getValue($app);
         $app->findRoboCommands('roboTestCommands');
         $conf->set(CONF::APPLICATION_NAME, 'test');
         $conf->set(CONF::APPLICATION_VERSION, '1.0.0');
+
+        $anv->invokeArgs($app, []);
         foreach ($opts as $param => $value) {
             if (is_string($value)) {
                 $value = str_replace('VFS:', $root->url(), $value);
             }
-            $app->config()->set($param, $value);
+            $conf->set($param, $value);
         }
         $msg = '';
         try {
-            $fin->invokeArgs($app, []);
+            $bl->invokeArgs($app, [ '-vvv']);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
@@ -408,7 +405,7 @@ class ApplicationTest extends LogTestCase
                 $this->assertEquals(1, sizeof($handlers));
                 $this->assertInstanceOf('\Monolog\Handler\PsrHandler', $handlers[0]);
             } else {
-                $this->assertDirectoryExists(''.$app->config()->get(CONF::LOG_DIRECTORY));
+                $this->assertDirectoryExists(''.$conf->get(CONF::LOG_DIRECTORY));
                 $this->assertEquals(2, sizeof($handlers));
                 $this->assertInstanceOf('\Monolog\Handler\PsrHandler', $handlers[0]);
                 $this->assertInstanceOf('\Monolog\Handler\StreamHandler', $handlers[1]);
@@ -482,8 +479,8 @@ class ApplicationTest extends LogTestCase
         /* TEST 3 - appType to empty, configuration type = symfony, namespace = default */
         $at->setValue($app, null);
         $cc->invokeArgs($app, []);
-        $this->assertNoticeInLog("1/2 - 0 classe(s) found.");
-        $this->assertWarningInLog("No classes subClassing $symfonyCmd found in namespace 'Commands'", true);
+        $this->assertInfoInLog("1/2 - 0 classe(s) found.");
+        $this->assertWarningInLog("No classes subClassing or implementing $symfonyCmd found", true);
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
 
@@ -492,9 +489,9 @@ class ApplicationTest extends LogTestCase
         $at->setValue($app, null);
         $cc->invokeArgs($app, []);
         $this->assertDebugInLog('1/2 - search {namespace} namespace - found {class}');
-        $this->assertNoticeInLog("1/2 - 1 classe(s) found.");
+        $this->assertInfoInLog("1/2 - 1 classe(s) found.");
         $this->assertDebugInLog('2/2 - Filter : {class} matches');
-        $this->assertNoticeInLog("2/2 - 1 classe(s) found in namespace 'symfonyTestCommands'", true);
+        $this->assertInfoInLog("2/2 - 1 classe(s) found in namespace 'symfonyTestCommands'", true);
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
 
@@ -503,8 +500,8 @@ class ApplicationTest extends LogTestCase
         $conf->setDefault(CONF::APPLICATION_TYPE, 'robo');
         $at->setValue($app, null);
         $cc->invokeArgs($app, []);
-        $this->assertNoticeInLog('1/2 - 0 classe(s) found.');
-        $this->assertWarningInLog("No classes subClassing \Robo\Tasks found in namespace 'foo'", true);
+        $this->assertInfoInLog('1/2 - 0 classe(s) found.');
+        $this->assertWarningInLog("No classes subClassing or implementing \Robo\Tasks found", true);
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
     }
@@ -684,10 +681,11 @@ class ApplicationTest extends LogTestCase
         /** check results */
         $this->assertEquals(['DgfipSI1\ApplicationTests\roboTestCommands\AppTestRoboFile'], $returnedValue);
         // $this->assertDebugInLog("1/2 - search");
+
         $this->assertDebugInLog("1/2 - search {namespace} namespace - found");
-        $this->assertNoticeInLog("1/2 - 1 classe(s) found.");
+        $this->assertInfoInLog("1/2 - 1 classe(s) found.");
         $this->assertDebugInLog("2/2 - Filter : {class} matches");
-        $this->assertNoticeInLog("2/2 - 1 classe(s) found in namespace");
+        $this->assertInfoInLog("2/2 - 1 classe(s) found in namespace");
         $this->assertDebugLogEmpty();
         $this->assertNoMoreProdMessages();
 
@@ -698,9 +696,9 @@ class ApplicationTest extends LogTestCase
         $this->assertEquals([], $returnedValue);
 
         $this->assertDebugInLog("1/2 - search {namespace} namespace - found");
-        $this->assertNoticeInLog("1/2 - 2 classe(s) found.");
+        $this->assertInfoInLog("1/2 - 2 classe(s) found.");
         $this->assertWarningInLog('2/2 Class "DgfipSI1\ApplicationTests\symfonyBadCommands\BadCommand" does not exist');
-        $this->assertWarningInLog("No classes subClassing {subClass} found in namespace '{namespace}'");
+        $this->assertWarningInLog("No classes subClassing or implementing {dependency} found in namespace");
         // $this->assertNoticeInLog("1/2 - 1 classe(s) found.");
 
         // $this->showNoDebugLogs();
@@ -712,16 +710,19 @@ class ApplicationTest extends LogTestCase
      *  test roboRun
      *
      * @covers \DgfipSI1\Application\Application::go
+     * @covers \DgfipSI1\Application\Application::finalize
      *
      */
     public function testRoboRun(): void
     {
-        $this->expectOutputString('Hello !');
-        $app = new Application($this->loader, [ './test', '--quiet', 'hello:test']);
+        $m = \Mockery::mock('overload:Robo\Runner')->makePartial();
+        $m->shouldReceive('setContainer');
+        $m->shouldReceive('run')->andReturn(0);  /** @phpstan-ignore-line  */
+
+        $app = new Application($this->loader, [ './test', 'hello:test']);
         $app->setName('test');
         $app->setVersion('1.00');
         $app->findRoboCommands('roboTestCommands');
-        /* check that calling findSymphonyCommands throws an error */
         $rc = $app->go();
         $this->assertEquals(0, $rc);
     }

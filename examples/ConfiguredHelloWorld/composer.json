@@ -1,7 +1,7 @@
 {
   "minimum-stability" : "alpha",
   "require": {
-    "dgfip-si1/application": "^1.0@alpha"
+    "dgfip-si1/application": "^1.0"
   },
   "autoload" : {
     "psr-4" : {
