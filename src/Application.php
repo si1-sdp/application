@@ -20,6 +20,7 @@ use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
+use League\Container\Argument\Literal\IntegerArgument;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -94,7 +95,7 @@ class Application extends SymfoApp
         // initialize input and output
         $this->input  = new ArgvInput($argv);
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
-        $this->output->setVerbosity($this->getVerbosity($this->input));
+        $this->output->setVerbosity(ApplicationLogger::getVerbosity($this->input));
 
         // setup a temporary logger for initialisation
         $this->logger = new Logger($this->output);
@@ -243,18 +244,21 @@ class Application extends SymfoApp
         // discover commands
         $this->discoverCommands();
 
-        $logger = $this->buildLogger();
-
         // Create and configure container.
         if (self::ROBO_APPLICATION === $this->appType) {
             Robo::configureContainer($this->container, $this, $this->config, $this->input, $this->output);
-            // if (!$this->container->has('roboLogger')) {
-            //     $this->container->extend('logger')->setAlias('roboLogger');
-            // }
-            // $this->container->addShared('logger', $logger);
+            if (!$this->container->has('roboLogger')) {
+                 $this->container->extend('logger')->setAlias('roboLogger');
+            }
+            $this->container->addShared('internal_configuration', $this->intConfig);
+            $this->container->addShared('logger', ApplicationLogger::class)
+                ->addArguments(['internal_configuration', 'output', 'verbosity']);
+
+            $this->container->addShared('logger', ApplicationLogger::class)
+                ->addArguments([$this->intConfig, $this->output, ApplicationLogger::getVerbosity($this->input)]);
             Robo::finalizeContainer($this->container);
         } else {
-            $this->configureSymfonyContainer($logger);
+            $this->configureSymfonyContainer();
         }
 
         $this->setupOptions();
@@ -318,7 +322,9 @@ class Application extends SymfoApp
             }
         }
         parent::setName($this->appName);
+        $this->intConfig->set(CONF::APPLICATION_NAME, $this->appName);
         parent::setVersion($this->appVersion);
+        $this->intConfig->set(CONF::APPLICATION_VERSION, $this->appVersion);
     }
     /**
      * Undocumented function
@@ -537,11 +543,9 @@ class Application extends SymfoApp
     /**
      * Configure the container for symfony applications
      *
-     * @param LoggerInterface $logger
-     *
      * @return void
      */
-    protected function configureSymfonyContainer($logger)
+    protected function configureSymfonyContainer()
     {
 
             // Self-referential container reference for the inflector
@@ -554,16 +558,24 @@ class Application extends SymfoApp
             $this->container->addShared('config', $this->config);
             $this->container->addShared('input', $this->input);
             $this->container->addShared('output', $this->output);
+            $verbosity = ApplicationLogger::getVerbosity($this->input);
+            $this->container->addShared('verbosity', new IntegerArgument($verbosity));
+            $this->container->addShared('internal_configuration', $this->intConfig);
+            $this->container->addShared('logger', ApplicationLogger::class)
+                ->addArguments(['internal_configuration', 'output', 'verbosity']);
             //self::addShared($container, 'outputAdapter', \Robo\Common\OutputAdapter::class);
+            $logger = $this->container->get('logger');    /** @var LoggerInterface $logger */
+            $this->logger = $logger;
+
             $this->container->addShared('classLoader', $this->classLoader);
-            $this->container->addShared('logger', $this->logger);
+            //$this->container->addShared('logger', $this->logger);
             $this->container->addShared('inputOptionsToConfig', InputOptionsToConfig::class)
                 ->addMethodCall('setApplication', ['application']);
             $this->container->addShared('hookManager', \Consolidation\AnnotatedCommand\Hooks\HookManager::class)
                 ->addMethodCall('addCommandEvent', ['inputOptionsToConfig']);
             $this->container->addShared('eventDispatcher', \Symfony\Component\EventDispatcher\EventDispatcher::class)
                 ->addMethodCall('addSubscriber', ['hookManager']);
-            $this->container->addShared('logger', $logger);
+            //$this->container->addShared('logger', $logger);
             // Make sure the application is appropriately initialized.
             $this->setAutoExit(false);
 
@@ -729,90 +741,5 @@ class Application extends SymfoApp
         }
 
         return;
-    }
-
-    /**
-     * Detect verbosity specified on command line
-     *
-     * @param Input $input
-     *
-     * @return integer
-     */
-    protected function getVerbosity($input)
-    {
-        $verbosity = OutputInterface::VERBOSITY_NORMAL;
-        if (true === $input->hasParameterOption(['--quiet', '-q'], true)) {
-            $verbosity = OutputInterface::VERBOSITY_QUIET;
-        } else {
-            $v = $input->getParameterOption('--verbose', false, true);
-            $v3 = $input->hasParameterOption('--verbose=3', true);
-            $v2 = $input->hasParameterOption('--verbose=2', true);
-            $v1 = $input->hasParameterOption('--verbose=1', true);
-            $vv = $input->hasParameterOption('--verbose', true);
-            if ($input->hasParameterOption('-vvv', true) || $v3 || 3 === $v) {
-                $verbosity = OutputInterface::VERBOSITY_DEBUG;
-            } elseif ($input->hasParameterOption('-vv', true) || $v2 || 2 === $v) {
-                $verbosity = OutputInterface::VERBOSITY_VERY_VERBOSE;
-            } elseif ($input->hasParameterOption('-v', true) || $v1 || $vv || $v) {
-                $verbosity = OutputInterface::VERBOSITY_VERBOSE;
-            }
-        }
-
-        return $verbosity;
-    }
-    /**
-     * Builds a logger
-     *
-     * @return Monolog
-     */
-    protected function buildLogger()
-    {
-        $logContext = [ 'name' => "buildLogger" ];
-        // Create logger
-        $logger = new Monolog('monolog');
-        $monologLevels = [
-            OutputInterface::VERBOSITY_QUIET         => MonLvl::fromName('WARNING'),
-            OutputInterface::VERBOSITY_NORMAL        => MonLvl::fromName('NOTICE'),
-            OutputInterface::VERBOSITY_VERBOSE       => MonLvl::fromName('INFO'),
-            OutputInterface::VERBOSITY_VERY_VERBOSE  => MonLvl::fromName('DEBUG'),
-            OutputInterface::VERBOSITY_DEBUG         => MonLvl::fromName('DEBUG'),
-        ];
-        // see if we have a log file and initialise monolog accordingly
-        $ld = $this->intConfig->get(CONF::LOG_DIRECTORY);
-        if (is_string($ld)) {
-            if (!file_exists($ld)) {
-                set_error_handler(function ($errno, $errstr) use ($ld) {
-                    throw new \Exception(sprintf("Can't create log directory '%s' - cause : %s", $ld, $errstr));
-                });
-                mkdir($ld);
-                restore_error_handler();
-            }
-            $logfile = $this->intConfig->get(CONF::LOG_FILENAME);
-            if (!is_string($logfile)) {
-                $logfile = "$this->appName.log";
-            }
-            $logContext['file'] = "$ld/$logfile";
-            $this->logger()->notice("starting file logger. Filename = {file}", $logContext);
-            $sh = new StreamHandler("$ld/$logfile", MonLvl::fromName('DEBUG'));
-            $sh->pushProcessor(new PsrLogMessageProcessor());
-            $dateFormat = CONF::DEFAULT_DATE_FORMAT;
-            if (is_string($this->intConfig->get(CONF::LOG_DATE_FORMAT))) {
-                $dateFormat = $this->intConfig->get(CONF::LOG_DATE_FORMAT);
-            }
-            // the default output format is "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
-            // change it to our needs.
-            $outputFormat = CONF::DEFAULT_OUTPUT_FORMAT;
-            if (is_string($this->intConfig->get(CONF::LOG_OUTPUT_FORMAT))) {
-                $outputFormat = $this->intConfig->get(CONF::LOG_OUTPUT_FORMAT);
-            }
-            $formatter = new LineFormatter($outputFormat, $dateFormat);
-            $sh->setFormatter($formatter);
-            $logger->pushHandler($sh);
-        }
-        $consoleHandler = new PsrHandler($this->logger, $monologLevels[$this->getVerbosity($this->input)]);
-        $logger->pushHandler($consoleHandler);
-        $this->logger = $logger;
-
-        return $logger;
     }
 }

@@ -22,6 +22,7 @@ class ApplicationSchema implements ConfigurationInterface
     public const LOG_FILENAME            = 'dgfip_si1.log.filename';
     public const LOG_DATE_FORMAT         = 'dgfip_si1.log.date_format';
     public const LOG_OUTPUT_FORMAT       = 'dgfip_si1.log.output_format';
+    public const LOG_LEVEL               = 'dgfip_si1.log.level';
 
     public const CONFIG_DIR              = 'dgfip_si1.configuration.directory';
     public const CONFIG_FILES            = 'dgfip_si1.configuration.files';
@@ -59,6 +60,9 @@ class ApplicationSchema implements ConfigurationInterface
                             ->info("Log date format ")->end()
                         ->scalarNode('output_format')->defaultValue(self::DEFAULT_OUTPUT_FORMAT)
                             ->info("Log output format ")->end()
+                        ->enumNode('level')
+                            ->Values(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'])
+                            ->defaultValue('notice')->info("Logfile output level")->end()
                     ->end()
                 ->end()
                 ->arrayNode('configuration')
