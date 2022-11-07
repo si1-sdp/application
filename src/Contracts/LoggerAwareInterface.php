@@ -17,5 +17,5 @@ interface LoggerAwareInterface extends \Psr\Log\LoggerAwareInterface
      *
      * @return LoggerInterface
      */
-    public function log();
+    public function logger();
 }

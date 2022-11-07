@@ -33,7 +33,7 @@ trait LoggerAwareTrait
      *
      * @return LoggerInterface
      */
-    public function log()
+    public function logger()
     {
         return $this->logger;
     }
