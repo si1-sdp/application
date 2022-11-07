@@ -579,13 +579,14 @@ class Application extends SymfoApp
      *
      * @return void
      */
-    protected function applyInflectorsBeforeContainerConfiguration($object): void {
-      if ($object instanceof LoggerAwareInterface) {
-        $object->setLogger($this->logger);
-      }
-      if ($object instanceof ConfigAwareInterface) {
-        $object->setConfig($this->config);
-      }
+    protected function applyInflectorsBeforeContainerConfiguration($object): void
+    {
+        if ($object instanceof LoggerAwareInterface) {
+            $object->setLogger($this->logger);
+        }
+        if ($object instanceof ConfigAwareInterface) {
+            $object->setConfig($this->config);
+        }
     }
 
 
@@ -663,9 +664,9 @@ class Application extends SymfoApp
         $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
           /** @var ApplicationAwareInterface $configurator */
-          $configurator = new $class();
-          $this->applyInflectorsBeforeContainerConfiguration($configurator);
-          $this->config->addSchema($configurator);
+            $configurator = new $class();
+            $this->applyInflectorsBeforeContainerConfiguration($configurator);
+            $this->config->addSchema($configurator);
         }
     }
     /**
