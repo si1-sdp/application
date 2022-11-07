@@ -201,11 +201,9 @@ class Application extends SymfoApp
     /**
      * run application
      *
-     * @param int $configOptions
-     *
      * @return int
      */
-    public function go($configOptions = 0)
+    public function go()
     {
         $this->finalize();
         $logContext = ['name' => 'go'];
@@ -221,7 +219,7 @@ class Application extends SymfoApp
         } elseif (self::SYMFONY_APPLICATION === $this->appType) {
             $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
             $this->logger->notice("Launching symfony command '{cmd_name}'", $logContext);
-            $statusCode = parent::run($this->input, $this->output);
+            $statusCode = $this->run($this->input, $this->output);
         }
 
         return $statusCode;
@@ -566,13 +564,32 @@ class Application extends SymfoApp
             $this->container->addShared('logger', $logger);
             // Make sure the application is appropriately initialized.
             $this->setAutoExit(false);
-
+            // see also applyInflectorsBeforeContainerConfiguration to have this done to objects before bootstrap...
             $this->container->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
             $this->container->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
             /** @var EventDispatcherInterface $dispatcher */
             $dispatcher = $this->container->get('eventDispatcher');
             $this->setDispatcher($dispatcher);
     }
+
+    /**
+     * Apply the inflectors to an object before the container has been configured
+     *
+     * @param object $object
+     *
+     * @return void
+     */
+    protected function applyInflectorsBeforeContainerConfiguration($object): void {
+      if ($object instanceof LoggerAwareInterface) {
+        $object->setLogger($this->logger);
+      }
+      if ($object instanceof ConfigAwareInterface) {
+        $object->setConfig($this->config);
+      }
+    }
+
+
+
     /**
      * Sets up the configuration
      *
@@ -645,9 +662,10 @@ class Application extends SymfoApp
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
         $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
-            /** @var ApplicationAwareInterface $configurator */
-            $configurator = new $class();
-            $this->config->addSchema($configurator);
+          /** @var ApplicationAwareInterface $configurator */
+          $configurator = new $class();
+          $this->applyInflectorsBeforeContainerConfiguration($configurator);
+          $this->config->addSchema($configurator);
         }
     }
     /**
@@ -661,8 +679,10 @@ class Application extends SymfoApp
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
         $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
+            $serviceName = "configurator.".$class;
+            $this->container()->addShared($serviceName, $class);
             /** @var ApplicationAwareInterface $configurator */
-            $configurator = new $class();
+            $configurator = $this->container()->get($serviceName);
             if (is_subclass_of($class, Command::class)) {
                 $name = '';
                 $attributes = (new \ReflectionClass($class))->getAttributes();
