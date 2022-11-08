@@ -20,6 +20,7 @@ use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
+use League\Container\ContainerAwareInterface;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -41,6 +42,7 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\Output;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -75,11 +77,11 @@ class Application extends SymfoApp
     /** @var array<string> */
     private $commandClasses;
     /** @var ConfigHelper $config */
-    private $config;
+    protected $config;
     /** @var ConfigHelper $intConfig Application internal configuration */
-    private $intConfig;
+    protected $intConfig;
     /** @var LoggerInterface $logger */
-    private $logger;
+    protected $logger;
 
     /**
      * constructor
@@ -201,11 +203,9 @@ class Application extends SymfoApp
     /**
      * run application
      *
-     * @param int $configOptions
-     *
      * @return int
      */
-    public function go($configOptions = 0)
+    public function go()
     {
         $this->finalize();
         $logContext = ['name' => 'go'];
@@ -221,7 +221,7 @@ class Application extends SymfoApp
         } elseif (self::SYMFONY_APPLICATION === $this->appType) {
             $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
             $this->logger->notice("Launching symfony command '{cmd_name}'", $logContext);
-            $statusCode = parent::run($this->input, $this->output);
+            $statusCode = $this->run($this->input, $this->output);
         }
 
         return $statusCode;
@@ -240,9 +240,6 @@ class Application extends SymfoApp
         // set application's name and version
         $this->setApplicationNameAndVersion();
 
-        // discover commands
-        $this->discoverCommands();
-
         $logger = $this->buildLogger();
 
         // Create and configure container.
@@ -256,8 +253,11 @@ class Application extends SymfoApp
         } else {
             $this->configureSymfonyContainer($logger);
         }
+        // discover commands
+        $this->discoverCommands();
 
         $this->setupOptions();
+        $this->setupEventListeners();
     }
     /**
      * setup configuration if file exists
@@ -348,7 +348,6 @@ class Application extends SymfoApp
                 $this->findSymfonyCommands($configuredNamespace);
             }
         }
-
         foreach ($this->container->getServices(tag: self::SYMFONY_CMD_TAG) as $command) {
             /** @var Command $command */
             $this->add($command);
@@ -405,9 +404,9 @@ class Application extends SymfoApp
         $discoveredClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
         $returned = [];
         foreach ($discoveredClasses as $discoveredClass) {
-            $concrete = new $discoveredClass();
+            // $concrete = new $discoveredClass();
             try {
-                $serviceDefinition = $this->addSharedService($concrete, $attributeNameForId, $tag);
+                $serviceDefinition = $this->addSharedService($discoveredClass, $attributeNameForId, $tag);
                 $returned[] = $serviceDefinition->getAlias();
             } catch (\LogicException $e) {
                 $logContext['class'] = $discoveredClass;
@@ -430,7 +429,7 @@ class Application extends SymfoApp
      * The id of the service is automatically discovered using PHP attributes.
      * A tag can be automatically added.
      *
-     * @param string|object $concrete
+     * @param object|string $objectOrClass
      * @param string        $attributeNameForId
      * @param string|null   $tag
      *
@@ -438,14 +437,16 @@ class Application extends SymfoApp
      *
      * @throws \LogicException
      */
-    protected function addSharedService($concrete, $attributeNameForId = 'name', $tag = null)
+    protected function addSharedService($objectOrClass, $attributeNameForId = 'name', $tag = null)
     {
         $logContext = [ 'name' => 'addSharedService' ];
-        if (!is_object($concrete)) {
+        /* if (!is_object($concrete)) {
             throw new LogicException("invalid Service provided");
-        }
+        } */
         $serviceId = null;
-        $attributes = (new \ReflectionClass($concrete::class))->getAttributes();
+        $reflectedClass = is_object($objectOrClass)? $objectOrClass::class : $objectOrClass;
+        /** @var class-string $reflectedClass */
+        $attributes = (new \ReflectionClass($reflectedClass))->getAttributes();
         foreach ($attributes as $attribute) {
             $attributeArguments = $attribute->getArguments();
             if (array_key_exists($attributeNameForId, $attributeArguments)) {
@@ -455,9 +456,9 @@ class Application extends SymfoApp
         }
         if (null === $serviceId) {
             $msg = "invalid service id for class %s, %s attribute argument not found";
-            throw new LogicException(sprintf($msg, $concrete::class, $attributeNameForId));
+            throw new LogicException(sprintf($msg, $reflectedClass, $attributeNameForId));
         }
-        $serviceDefinition = $this->container->addShared($serviceId, $concrete);
+        $serviceDefinition = $this->container->addShared($serviceId, $objectOrClass);
         $this->logger()->debug("Adding service $serviceId to container", $logContext);
         if ((null !== $tag) && ("" !== $tag)) {
             $this->logger()->debug("Add tag $tag to service $serviceId", $logContext);
@@ -543,7 +544,6 @@ class Application extends SymfoApp
      */
     protected function configureSymfonyContainer($logger)
     {
-
             // Self-referential container reference for the inflector
             $this->container->add('container', $this->container);
 
@@ -566,13 +566,34 @@ class Application extends SymfoApp
             $this->container->addShared('logger', $logger);
             // Make sure the application is appropriately initialized.
             $this->setAutoExit(false);
-
+            // see also applyInflectorsBeforeContainerConfiguration to have this done to objects before bootstrap...
             $this->container->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
             $this->container->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
+            $this->container->inflector(ContainerAwareInterface::class)->invokeMethod('setContainer', ['container']);
             /** @var EventDispatcherInterface $dispatcher */
             $dispatcher = $this->container->get('eventDispatcher');
             $this->setDispatcher($dispatcher);
     }
+
+    /**
+     * Apply the inflectors to an object before the container has been configured
+     *
+     * @param object $object
+     *
+     * @return void
+     */
+    protected function applyInflectorsBeforeContainerConfiguration($object): void
+    {
+        if ($object instanceof LoggerAwareInterface) {
+            $object->setLogger($this->logger);
+        }
+        if ($object instanceof ConfigAwareInterface) {
+            $object->setConfig($this->config);
+        }
+    }
+
+
+
     /**
      * Sets up the configuration
      *
@@ -645,11 +666,49 @@ class Application extends SymfoApp
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
         $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
-            /** @var ApplicationAwareInterface $configurator */
+          /** @var ApplicationAwareInterface $configurator */
             $configurator = new $class();
+            $this->applyInflectorsBeforeContainerConfiguration($configurator);
             $this->config->addSchema($configurator);
         }
     }
+
+    /**
+     * - add all config schemas from commands and global to have a full schema
+     * - add global options
+     *
+     * @return void
+     */
+    protected function setupEventListeners()
+    {
+        /** @var string $namespace */
+        $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
+        $classes     = $this->discoverPsr4Classes($namespace, EventSubscriberInterface::class, silent: true);
+        $container = $this->container();
+        /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher */
+        $eventDispatcher = $container->get("eventDispatcher");
+        foreach ($classes as $class) {
+            // try to find the service if already registered to the container
+            $serviceName = null;
+            $instance = null;
+            $existingServices = $container->getServices(baseInstance: $class);
+            if (count($existingServices) > 0) {
+                $serviceName = array_keys($existingServices)[0];
+                $instance = array_values($existingServices)[0];
+                $this->logger()->debug(
+                    sprintf("found service %s already registered as being an EventSubscriber", $serviceName)
+                );
+            } else {
+                $serviceName = "EventSubscriber.".$class;
+                $container->add($serviceName, $class);
+                $instance = $container->get($serviceName);
+            }
+            /** @var EventSubscriberInterface $instance */
+            // $eventSubscriber = new $class();
+            $eventDispatcher->addSubscriber($instance);
+        }
+    }
+
     /**
      * setup Options - add options defined in discovered ApplicationAwareInterface classes
      *
@@ -661,8 +720,10 @@ class Application extends SymfoApp
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
         $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
+            $serviceName = "configurator.".$class;
+            $this->container()->addShared($serviceName, $class);
             /** @var ApplicationAwareInterface $configurator */
-            $configurator = new $class();
+            $configurator = $this->container()->get($serviceName);
             if (is_subclass_of($class, Command::class)) {
                 $name = '';
                 $attributes = (new \ReflectionClass($class))->getAttributes();

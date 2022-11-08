@@ -26,7 +26,12 @@ class ApplicationContainerTest extends TestCase
         $def02 = $container->addShared('container02', $container)->addTag('cont02')->addTag('container');
         $def03 = $container->addShared('phpunit', $this)->addTag('test');
 
-        $definitions = $container->getDefinitions();
+        $refectedClass = new \ReflectionClass('\DgfipSI1\Application\ApplicationContainer');
+        $getDef = $refectedClass->getMethod('getDefinitions');
+        $getDef->setAccessible(true);
+
+        /** @var array<string, mixed> $definitions */
+        $definitions = $getDef->invokeArgs($container, []);
         $this->assertEquals(3, count($definitions));
         $this->assertArrayHasKey('container', $definitions);
         $this->assertEquals($def01, $definitions['container']);
@@ -36,13 +41,17 @@ class ApplicationContainerTest extends TestCase
         $this->assertEquals($def03, $definitions['phpunit']);
 
         /* Test with filters          */
-        $definitions = $container->getDefinitions(regex: '/^cont/');
+        /** @var array<string, mixed> $definitions */
+        $definitions = $getDef->invokeArgs($container, ['/^cont/']);
         $this->assertEquals(2, count($definitions));
-        $definitions = $container->getDefinitions(regex: '/^container[0-9]/');
+        /** @var array<string, mixed> $definitions */
+        $definitions = $getDef->invokeArgs($container, ['/^container[0-9]/']);
         $this->assertEquals(1, count($definitions));
-        $definitions = $container->getDefinitions(tag: 'container');
+        /** @var array<string, mixed> $definitions */
+        $definitions = $getDef->invokeArgs($container, [null, 'container']);
         $this->assertEquals(2, count($definitions));
-        $definitions = $container->getDefinitions(tag: 'cont01');
+        /** @var array<string, mixed> $definitions */
+        $definitions = $getDef->invokeArgs($container, [null, 'cont01']);
         $this->assertEquals(1, count($definitions));
 
         /* Test services */

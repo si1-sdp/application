@@ -12,27 +12,15 @@ use League\Container\DefinitionContainerInterface;
 interface ApplicationContainerInterface extends DefinitionContainerInterface
 {
     /**
-     * get all services definitions or only services definitions which ids match specified regex
-     *
-     * @param string|null $regex
-     * @param string|null $tag
-     *
-     * @return array<\League\Container\Definition\Definition>
-     *
-     * @throws \Exception
-     */
-    public function getDefinitions(string $regex = null, string $tag = null);
-
-
-    /**
      * get all services or only services which ids match specified regex
      *
      * @param string|null $regex
      * @param string|null $tag
+     * @param string|null $baseInstance
      *
      * @return array<object>
      *
      * @throws \Psr\Container\ContainerExceptionInterface
      */
-    public function getServices(string $regex = null, string $tag = null);
+    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null);
 }
