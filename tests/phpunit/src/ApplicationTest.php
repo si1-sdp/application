@@ -542,13 +542,15 @@ class ApplicationTest extends LogTestCase
 
         // test with non object
         $msg = '';
-        try {
-            $asc->invokeArgs($app, [ "string" , 'description', 'myTag']);
-            /** @phpstan-ignore-next-line */
-        } catch (LogicException $e) {
-            $msg = $e->getMessage();
-        }
-        $this->assertEquals('invalid Service provided', $msg);
+        $asc->invokeArgs($app, [ $object::class , 'description', 'myTag2']);
+        $this->assertDebugInLog("Adding service A symfony command hello world example to container");
+        $this->assertDebugInLog("Add tag myTag2 to service A symfony command hello");
+        $this->assertArrayHasKey('A symfony command hello world example', $app->container()->getServices());
+        $this->assertEquals(1, count($app->container()->getDefinitions(tag: 'myTag2')));
+        $this->assertDebugLogEmpty();
+        $this->assertNoMoreProdMessages();
+
+
 
         // test with bad name attribute
         $msg = '';

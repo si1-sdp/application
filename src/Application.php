@@ -42,6 +42,7 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\Input;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\Output;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -239,9 +240,6 @@ class Application extends SymfoApp
         // set application's name and version
         $this->setApplicationNameAndVersion();
 
-        // discover commands
-        $this->discoverCommands();
-
         $logger = $this->buildLogger();
 
         // Create and configure container.
@@ -255,8 +253,11 @@ class Application extends SymfoApp
         } else {
             $this->configureSymfonyContainer($logger);
         }
+        // discover commands
+        $this->discoverCommands();
 
         $this->setupOptions();
+        $this->setupEventListeners();
     }
     /**
      * setup configuration if file exists
@@ -347,7 +348,6 @@ class Application extends SymfoApp
                 $this->findSymfonyCommands($configuredNamespace);
             }
         }
-
         foreach ($this->container->getServices(tag: self::SYMFONY_CMD_TAG) as $command) {
             /** @var Command $command */
             $this->add($command);
@@ -404,9 +404,9 @@ class Application extends SymfoApp
         $discoveredClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
         $returned = [];
         foreach ($discoveredClasses as $discoveredClass) {
-            $concrete = new $discoveredClass();
+            // $concrete = new $discoveredClass();
             try {
-                $serviceDefinition = $this->addSharedService($concrete, $attributeNameForId, $tag);
+                $serviceDefinition = $this->addSharedService($discoveredClass, $attributeNameForId, $tag);
                 $returned[] = $serviceDefinition->getAlias();
             } catch (\LogicException $e) {
                 $logContext['class'] = $discoveredClass;
@@ -429,7 +429,7 @@ class Application extends SymfoApp
      * The id of the service is automatically discovered using PHP attributes.
      * A tag can be automatically added.
      *
-     * @param string|object $concrete
+     * @param object|string $objectOrClass
      * @param string        $attributeNameForId
      * @param string|null   $tag
      *
@@ -437,14 +437,16 @@ class Application extends SymfoApp
      *
      * @throws \LogicException
      */
-    protected function addSharedService($concrete, $attributeNameForId = 'name', $tag = null)
+    protected function addSharedService($objectOrClass, $attributeNameForId = 'name', $tag = null)
     {
         $logContext = [ 'name' => 'addSharedService' ];
-        if (!is_object($concrete)) {
+        /* if (!is_object($concrete)) {
             throw new LogicException("invalid Service provided");
-        }
+        } */
         $serviceId = null;
-        $attributes = (new \ReflectionClass($concrete::class))->getAttributes();
+        $reflectedClass = is_object($objectOrClass)? $objectOrClass::class : $objectOrClass;
+        /** @var class-string $reflectedClass */
+        $attributes = (new \ReflectionClass($reflectedClass))->getAttributes();
         foreach ($attributes as $attribute) {
             $attributeArguments = $attribute->getArguments();
             if (array_key_exists($attributeNameForId, $attributeArguments)) {
@@ -454,9 +456,9 @@ class Application extends SymfoApp
         }
         if (null === $serviceId) {
             $msg = "invalid service id for class %s, %s attribute argument not found";
-            throw new LogicException(sprintf($msg, $concrete::class, $attributeNameForId));
+            throw new LogicException(sprintf($msg, $reflectedClass, $attributeNameForId));
         }
-        $serviceDefinition = $this->container->addShared($serviceId, $concrete);
+        $serviceDefinition = $this->container->addShared($serviceId, $objectOrClass);
         $this->logger()->debug("Adding service $serviceId to container", $logContext);
         if ((null !== $tag) && ("" !== $tag)) {
             $this->logger()->debug("Add tag $tag to service $serviceId", $logContext);
@@ -670,6 +672,43 @@ class Application extends SymfoApp
             $this->config->addSchema($configurator);
         }
     }
+
+    /**
+     * - add all config schemas from commands and global to have a full schema
+     * - add global options
+     *
+     * @return void
+     */
+    protected function setupEventListeners()
+    {
+        /** @var string $namespace */
+        $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
+        $classes     = $this->discoverPsr4Classes($namespace, EventSubscriberInterface::class, silent: true);
+        $container = $this->container();
+        /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher */
+        $eventDispatcher = $container->get("eventDispatcher");
+        foreach ($classes as $class) {
+            // try to find the service if already registered to the container
+            $serviceName = null;
+            $instance = null;
+            $existingServices = $container->getServices(baseInstance: $class);
+            if (count($existingServices) > 0) {
+                $serviceName = array_keys($existingServices)[0];
+                $instance = array_values($existingServices)[0];
+                $this->logger()->debug(
+                    sprintf("found service %s already registered as being an EventSubscriber", $serviceName)
+                );
+            } else {
+                $serviceName = "EventSubscriber.".$class;
+                $container->add($serviceName, $class);
+                $instance = $container->get($serviceName);
+            }
+            /** @var EventSubscriberInterface $instance */
+            // $eventSubscriber = new $class();
+            $eventDispatcher->addSubscriber($instance);
+        }
+    }
+
     /**
      * setup Options - add options defined in discovered ApplicationAwareInterface classes
      *
