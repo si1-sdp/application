@@ -77,11 +77,11 @@ class Application extends SymfoApp
     /** @var array<string> */
     private $commandClasses;
     /** @var ConfigHelper $config */
-    private $config;
+    protected $config;
     /** @var ConfigHelper $intConfig Application internal configuration */
-    private $intConfig;
+    protected $intConfig;
     /** @var LoggerInterface $logger */
-    private $logger;
+    protected $logger;
 
     /**
      * constructor
