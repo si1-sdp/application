@@ -16,12 +16,13 @@ interface ApplicationContainerInterface extends DefinitionContainerInterface
      *
      * @param string|null $regex
      * @param string|null $tag
+     * @param string|null $baseInstance
      *
      * @return array<\League\Container\Definition\Definition>
      *
      * @throws \Exception
      */
-    public function getDefinitions(string $regex = null, string $tag = null);
+    public function getDefinitions(string $regex = null, string $tag = null, string $baseInstance = null);
 
 
     /**
@@ -29,10 +30,11 @@ interface ApplicationContainerInterface extends DefinitionContainerInterface
      *
      * @param string|null $regex
      * @param string|null $tag
+     * @param string|null $baseInstance
      *
      * @return array<object>
      *
      * @throws \Psr\Container\ContainerExceptionInterface
      */
-    public function getServices(string $regex = null, string $tag = null);
+    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null);
 }

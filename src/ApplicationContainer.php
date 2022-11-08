@@ -12,11 +12,10 @@ use League\Container\Container;
  */
 class ApplicationContainer extends Container implements ApplicationContainerInterface
 {
-
     /**
      * @inheritDoc
      */
-    public function getDefinitions(string $regex = null, string $tag = null)
+    public function getDefinitions(string $regex = null, string $tag = null, string $baseInstance = null)
     {
         $ret = [];
         foreach ($this->definitions->getIterator() as $key => $definition) {
@@ -28,6 +27,9 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
             if ((null !== $tag) && !$definition->hasTag($tag)) {
                 continue;
             }
+            if ((null !== $baseInstance) && !($definition instanceof $baseInstance)) {
+                continue;
+            }
             $ret[$alias] = $definition;
         }
 
@@ -35,17 +37,13 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
     }
 
     /**
-     * @param string $regex
-     * @param string $tag
-     *
-     * @return array<object>
+     * @inheritDoc
      */
-    public function getServices(string $regex = null, string $tag = null)
+    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null)
     {
         $ret = [];
-        foreach ($this->getDefinitions($regex, $tag) as $alias => $definition) {
-            /** @var \League\Container\Definition\Definition $definition */
-            $obj = $definition->getConcrete();
+        foreach ($this->getDefinitions($regex, $tag, $baseInstance) as $alias => $definition) {
+            $obj =  $this->resolve($alias);
             if (is_object($obj)) {
                 $ret[$alias] = $obj;
             }
