@@ -536,7 +536,7 @@ class ApplicationTest extends LogTestCase
         $this->assertDebugInLog("Adding service A symfony command hello world example to container");
         $this->assertDebugInLog("Add tag myTag to service A symfony command hello");
         $this->assertArrayHasKey('A symfony command hello world example', $app->container()->getServices());
-        $this->assertEquals(1, count($app->container()->getDefinitions(tag: 'myTag')));
+        $this->assertEquals(1, count($app->container()->getServices(tag: 'myTag')));
         $this->assertDebugLogEmpty();
         $this->assertNoMoreProdMessages();
 
@@ -546,7 +546,7 @@ class ApplicationTest extends LogTestCase
         $this->assertDebugInLog("Adding service A symfony command hello world example to container");
         $this->assertDebugInLog("Add tag myTag2 to service A symfony command hello");
         $this->assertArrayHasKey('A symfony command hello world example', $app->container()->getServices());
-        $this->assertEquals(1, count($app->container()->getDefinitions(tag: 'myTag2')));
+        $this->assertEquals(1, count($app->container()->getServices(tag: 'myTag2')));
         $this->assertDebugLogEmpty();
         $this->assertNoMoreProdMessages();
 

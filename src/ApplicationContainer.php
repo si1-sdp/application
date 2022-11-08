@@ -15,7 +15,31 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
     /**
      * @inheritDoc
      */
-    public function getDefinitions(string $regex = null, string $tag = null, string $baseInstance = null)
+    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null)
+    {
+        $ret = [];
+        foreach ($this->getDefinitions($regex, $tag, $baseInstance) as $alias => $definition) {
+            $obj =  $this->resolve($alias);
+            if (is_object($obj)) {
+                $ret[$alias] = $obj;
+            }
+        }
+
+        return $ret;
+    }
+
+    /**
+     * get all services definitions or only services definitions which ids match specified regex
+     *
+     * @param string|null $regex
+     * @param string|null $tag
+     * @param string|null $baseInstance
+     *
+     * @return array<\League\Container\Definition\Definition>
+     *
+     * @throws \Exception
+     */
+    protected function getDefinitions(string $regex = null, string $tag = null, string $baseInstance = null)
     {
         $ret = [];
         foreach ($this->definitions->getIterator() as $key => $definition) {
@@ -31,22 +55,6 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
                 continue;
             }
             $ret[$alias] = $definition;
-        }
-
-        return $ret;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null)
-    {
-        $ret = [];
-        foreach ($this->getDefinitions($regex, $tag, $baseInstance) as $alias => $definition) {
-            $obj =  $this->resolve($alias);
-            if (is_object($obj)) {
-                $ret[$alias] = $obj;
-            }
         }
 
         return $ret;
