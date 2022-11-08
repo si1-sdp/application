@@ -20,6 +20,7 @@ use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
+use League\Container\ContainerAwareInterface;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -541,7 +542,6 @@ class Application extends SymfoApp
      */
     protected function configureSymfonyContainer($logger)
     {
-
             // Self-referential container reference for the inflector
             $this->container->add('container', $this->container);
 
@@ -567,6 +567,7 @@ class Application extends SymfoApp
             // see also applyInflectorsBeforeContainerConfiguration to have this done to objects before bootstrap...
             $this->container->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
             $this->container->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
+            $this->container->inflector(ContainerAwareInterface::class)->invokeMethod('setContainer', ['container']);
             /** @var EventDispatcherInterface $dispatcher */
             $dispatcher = $this->container->get('eventDispatcher');
             $this->setDispatcher($dispatcher);
