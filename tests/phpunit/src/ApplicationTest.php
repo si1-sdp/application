@@ -36,6 +36,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @uses \DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses \DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses \DgfipSI1\Application\ApplicationLogger
+ * @uses \DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class ApplicationTest extends LogTestCase
 {
@@ -151,7 +152,7 @@ class ApplicationTest extends LogTestCase
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
 
-        $this->assertEquals($configFile, $config->get('dgfip_si1.runtime.config_file'));
+        $this->assertEquals($configFile, $config->get(CONF::RUNTIME_INT_CONFIG));
         $this->assertEquals('test_app', $config->get(CONF::APPLICATION_NAME));
         $this->assertEquals('0.99.0', $config->get(CONF::APPLICATION_VERSION));
 
@@ -298,7 +299,8 @@ class ApplicationTest extends LogTestCase
         $symfonyCmd = $this->class->getConstant('SYMFONY_SUBCLASS');
 
         // we want discover log to check namespace
-        $this->initLogger($app, ['discoverCommands', 'discoverPsr4Classes']);
+        $testedMethods = ['discoverCommands', 'discoverPsr4Classes', 'discoverClassesInNamespace', 'filterClasses'];
+        $this->initLogger($app, $testedMethods);
 
 
         /* TEST 1 -  appType to robo, no appType in configuration */
@@ -495,61 +497,6 @@ class ApplicationTest extends LogTestCase
         $returnedValue = $rcs->invokeArgs($app, [ 'symfonyBadCommands', $symfoClass ]);
         $this->assertWarningInLog('Service could not be added');
         $this->assertWarningInLog('No service found');
-        $this->assertDebugLogEmpty();
-        $this->assertNoMoreProdMessages();
-    }
-
-    /**
-     *  test discoverPsr4Classes
-     *
-     * @covers \DgfipSI1\Application\Application::discoverPsr4Classes
-     *
-     * @runInSeparateProcess
-     *
-     * @preserveGlobalState disabled
-    */
-    public function testDiscoverPsr4Classes(): void
-    {
-        $disc = $this->class->getMethod('discoverPsr4Classes');
-        $disc->setAccessible(true);
-        $lg = $this->class->getProperty('logger');
-        $lg->setAccessible(true);
-        //$this->logger = new TestLogger(['discoverPsr4Classes']);
-        $this->logger = new TestLogger(['discoverPsr4Classes']);
-
-
-        $symfoClass = $this->class->getConstant('SYMFONY_SUBCLASS');
-        $roboClass  = $this->class->getConstant('ROBO_SUBCLASS');
-
-        /** test nominal case : discover one class  */
-        $app   = new Application($this->loader);
-        $lg->setValue($app, $this->logger);
-        $returnedValue = $disc->invokeArgs($app, [ 'roboTestCommands', $roboClass ]);
-        /** check results */
-        $this->assertEquals(['DgfipSI1\ApplicationTests\roboTestCommands\AppTestRoboFile'], $returnedValue);
-        // $this->assertDebugInLog("1/2 - search");
-
-        $this->assertDebugInLog("1/2 - search {namespace} namespace - found");
-        $this->assertInfoInLog("1/2 - 1 classe(s) found.");
-        $this->assertDebugInLog("2/2 - Filter : {class} matches");
-        $this->assertInfoInLog("2/2 - 1 classe(s) found in namespace");
-        $this->assertDebugLogEmpty();
-        $this->assertNoMoreProdMessages();
-
-        /** test class in error */
-        $app   = new Application($this->loader);
-        $lg->setValue($app, $this->logger);
-        $returnedValue = $disc->invokeArgs($app, [ 'symfonyBadCommands', $roboClass ]);
-        $this->assertEquals([], $returnedValue);
-
-        $this->assertDebugInLog("1/2 - search {namespace} namespace - found");
-        $this->assertInfoInLog("1/2 - 2 classe(s) found.");
-        $this->assertWarningInLog('2/2 Class "DgfipSI1\ApplicationTests\symfonyBadCommands\BadCommand" does not exist');
-        $this->assertWarningInLog("No classes subClassing or implementing {dependency} found in namespace");
-        // $this->assertNoticeInLog("1/2 - 1 classe(s) found.");
-
-        // $this->showNoDebugLogs();
-        // $this->showDebugLogs();
         $this->assertDebugLogEmpty();
         $this->assertNoMoreProdMessages();
     }

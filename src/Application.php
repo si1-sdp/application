@@ -20,6 +20,7 @@ use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
+use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
 use League\Container\Definition\DefinitionInterface;
 use Monolog\Logger as Monolog;
@@ -290,11 +291,12 @@ class Application extends SymfoApp
                     continue;
                 }
                 $this->logger->debug("Configuration file {file} loaded.", $logContext);
-                $this->intConfig->setDefault("dgfip_si1.runtime.config_file", $file);
+                $this->intConfig->setDefault(CONF::RUNTIME_INT_CONFIG, $file);
+                $this->intConfig->setDefault(CONF::RUNTIME_ROOT_DIRECTORY, $file);
                 break;
             }
         }
-        if (!$this->intConfig->get("dgfip_si1.runtime.config_file")) {
+        if (!$this->intConfig->get(CONF::RUNTIME_INT_CONFIG)) {
             $this->logger->debug("No default configuration loaded", $logContext);
         }
     }
@@ -373,7 +375,9 @@ class Application extends SymfoApp
     protected function discoverRoboCommands($nameSpace, $subClass): array
     {
         $logContext = [ 'name' => 'discoverRoboCommands' ];
-        $cClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
+        $disc = new ClassDiscoverer($this->classLoader);
+        $disc->setLogger($this->logger);
+        $cClasses = $disc->discoverPsr4Classes($nameSpace, $subClass);
         $commands = [];
         foreach ($cClasses as $commandClass) {
             /** @var class-string $commandClass */
@@ -408,7 +412,9 @@ class Application extends SymfoApp
     protected function configureAndRegisterServices($nameSpace, $subClass, $tag = null, $attributeNameForId = 'name')
     {
         $logContext = [ 'name' => 'configureAndRegisterServices'  ];
-        $discoveredClasses = $this->discoverPsr4Classes($nameSpace, $subClass);
+        $disc = new ClassDiscoverer($this->classLoader);
+        $disc->setLogger($this->logger);
+        $discoveredClasses = $disc->discoverPsr4Classes($nameSpace, $subClass);
         $returned = [];
         foreach ($discoveredClasses as $discoveredClass) {
             $concrete = new $discoveredClass();
@@ -473,73 +479,6 @@ class Application extends SymfoApp
         return $serviceDefinition;
     }
 
-    /**
-     * Discovers commands that are PSR4 auto-loaded.
-     *
-     * @param string            $namespace
-     * @param class-string|null $dependency Filter classes on class->implementsInterface(dependency)
-     *                                      or class->isSubClassOf(dependency)
-     * @param bool              $silent     Do not warn if no class found
-     *
-     * @return array<string>
-     *
-     * @throws \ReflectionException
-     */
-    protected function discoverPsr4Classes($namespace, $dependency, $silent = false): array
-    {
-        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace, 'dependency' => $dependency ];
-        // discovers classes that are in a directory ($namespace) imediatly under 'src'
-        $classes = (new RelativeNamespaceDiscovery($this->classLoader))
-            ->setRelativeNamespace($namespace)
-            ->getClasses();
-        foreach ($classes as $class) {
-            $logContext['class'] = $class;
-            $this->logger()->debug("1/2 - search {namespace} namespace - found {class}", $logContext);
-        }
-        $this->logger()->info("1/2 - ".count($classes)." classe(s) found.", $logContext);
-        $filteredClasses = [];
-        foreach ($classes as $class) {
-            try {
-                /** @var class-string $class */
-                $refClass = new \ReflectionClass($class);
-                /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
-            } catch (\ReflectionException $e) {
-                $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
-                continue;
-            }
-            if ($refClass->isAbstract() || $refClass->isInterface() || $refClass->isTrait()) {
-                continue;
-            }
-            if (null === $dependency) {
-                $filteredClasses[] = $class;
-            } else {
-                try {
-                    $depRef = new \ReflectionClass($dependency);
-                    /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
-                } catch (\ReflectionException $e) {
-                    $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
-                    continue;
-                }
-                if (($depRef->isInterface() && $refClass->implementsInterface($depRef)) ||
-                     $refClass->isSubclassOf($depRef)) {
-                    $filteredClasses[] = $class;
-                }
-            }
-        }
-        if (empty($filteredClasses) && false === $silent) {
-            $msg = "No classes subClassing or implementing {dependency} found in namespace '{namespace}'";
-            $this->logger()->warning($msg, $logContext);
-        } else {
-            foreach ($filteredClasses as $class) {
-                $logContext['class'] = $class;
-                $this->logger()->debug("2/2 - Filter : {class} matches", $logContext);
-            }
-            $count = count($filteredClasses);
-            $this->logger()->info("2/2 - $count classe(s) found in namespace '{namespace}'", $logContext);
-        }
-
-        return $filteredClasses;
-    }
     /**
      * Configure the container for symfony applications
      *
@@ -655,7 +594,9 @@ class Application extends SymfoApp
     {
         /** @var string $namespace */
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
-        $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
+        $disc = new ClassDiscoverer($this->classLoader);
+        $disc->setLogger($this->logger);
+        $classes     = $disc->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
             /** @var ApplicationAwareInterface $configurator */
             $configurator = new $class();
@@ -671,7 +612,9 @@ class Application extends SymfoApp
     {
         /** @var string $namespace */
         $namespace   = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
-        $classes     = $this->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
+        $disc = new ClassDiscoverer($this->classLoader);
+        $disc->setLogger($this->logger);
+        $classes     = $disc->discoverPsr4Classes($namespace, ApplicationAwareInterface::class, silent: true);
         foreach ($classes as $class) {
             /** @var ApplicationAwareInterface $configurator */
             $configurator = new $class();

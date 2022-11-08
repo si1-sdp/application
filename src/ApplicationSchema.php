@@ -30,6 +30,9 @@ class ApplicationSchema implements ConfigurationInterface
     public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
     public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
 
+    public const RUNTIME_INT_CONFIG      = "dgfip_si1.runtime.app_config_file";
+    public const RUNTIME_ROOT_DIRECTORY  = "dgfip_si1.runtime.root_directory";
+
     /**
      * The main configuration tree
      *
@@ -66,10 +69,18 @@ class ApplicationSchema implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->arrayNode('configuration')
+                    ->info('directory patterns that can contain configuration files')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->scalarNode('directory')->info("configuration directory")->end()
+                        ->scalarNode('search_root')
+                            ->info("configuration search root - default is application root directory")
+                        ->end()
+                        ->arrayNode('directories')
+                            ->info('directory patterns that can contain configuration files (default = none)')
+                            ->scalarPrototype()->end()
+                        ->end()
                         ->arrayNode('files')
+                            ->info('file patterns of configuration files (default = \'config.yml\')')
                             ->defaultValue(['config.yml'])
                             ->scalarPrototype()->end()
                         ->end()
