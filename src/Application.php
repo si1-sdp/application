@@ -248,12 +248,11 @@ class Application extends SymfoApp
             if (!$this->container->has('roboLogger')) {
                  $this->container->extend('logger')->setAlias('roboLogger');
             }
+            $verbosity = ApplicationLogger::getVerbosity($this->input);
+            $this->container->addShared('verbosity', new IntegerArgument($verbosity));
             $this->container->addShared('internal_configuration', $this->intConfig);
             $this->container->addShared('logger', ApplicationLogger::class)
                 ->addArguments(['internal_configuration', 'output', 'verbosity']);
-
-            $this->container->addShared('logger', ApplicationLogger::class)
-                ->addArguments([$this->intConfig, $this->output, ApplicationLogger::getVerbosity($this->input)]);
             Robo::finalizeContainer($this->container);
         } else {
             $this->configureSymfonyContainer();
