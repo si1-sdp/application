@@ -12,11 +12,34 @@ use League\Container\Container;
  */
 class ApplicationContainer extends Container implements ApplicationContainerInterface
 {
-
     /**
      * @inheritDoc
      */
-    public function getDefinitions(string $regex = null, string $tag = null)
+    public function getServices(string $regex = null, string $tag = null, string $baseInstance = null)
+    {
+        $ret = [];
+        foreach ($this->getDefinitions($regex, $tag, $baseInstance) as $alias => $definition) {
+            $obj =  $this->resolve($alias);
+            if (is_object($obj)) {
+                $ret[$alias] = $obj;
+            }
+        }
+
+        return $ret;
+    }
+
+    /**
+     * get all services definitions or only services definitions which ids match specified regex
+     *
+     * @param string|null $regex
+     * @param string|null $tag
+     * @param string|null $baseInstance
+     *
+     * @return array<\League\Container\Definition\Definition>
+     *
+     * @throws \Exception
+     */
+    protected function getDefinitions(string $regex = null, string $tag = null, string $baseInstance = null)
     {
         $ret = [];
         foreach ($this->definitions->getIterator() as $key => $definition) {
@@ -28,27 +51,10 @@ class ApplicationContainer extends Container implements ApplicationContainerInte
             if ((null !== $tag) && !$definition->hasTag($tag)) {
                 continue;
             }
-            $ret[$alias] = $definition;
-        }
-
-        return $ret;
-    }
-
-    /**
-     * @param string $regex
-     * @param string $tag
-     *
-     * @return array<object>
-     */
-    public function getServices(string $regex = null, string $tag = null)
-    {
-        $ret = [];
-        foreach ($this->getDefinitions($regex, $tag) as $alias => $definition) {
-            /** @var \League\Container\Definition\Definition $definition */
-            $obj = $definition->getConcrete();
-            if (is_object($obj)) {
-                $ret[$alias] = $obj;
+            if ((null !== $baseInstance) && !($definition instanceof $baseInstance)) {
+                continue;
             }
+            $ret[$alias] = $definition;
         }
 
         return $ret;
