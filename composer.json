@@ -18,12 +18,12 @@
     "composer/composer" : "^2, >=2.4",
     "consolidation/robo" : "^4.0",
     "league/container" : "^4.0, >=4.2",
-    "dgfip-si1/config-helper": "^1.0, >=1.0.alpha5",
+    "dgfip-si1/config-helper": "^1.0, >=1.0.alpha8",
     "monolog/monolog" : "^3.2",
     "symfony/console" : "^6"
   },	
   "require-dev": {
-    "dgfip-si1/test-logger": ">= 1.0.alpha10",
+    "dgfip-si1/test-logger": ">= 1.0.alpha11",
     "escapestudios/symfony2-coding-standard": "^3.12",
     "mikey179/vfsstream": "^1.6, >=1.6.10",
     "mockery/mockery": "^1.4",

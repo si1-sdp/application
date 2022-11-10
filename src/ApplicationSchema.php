@@ -24,8 +24,11 @@ class ApplicationSchema implements ConfigurationInterface
     public const LOG_OUTPUT_FORMAT       = 'dgfip_si1.log.output_format';
     public const LOG_LEVEL               = 'dgfip_si1.log.level';
 
-    public const CONFIG_DIR              = 'dgfip_si1.configuration.directory';
-    public const CONFIG_FILES            = 'dgfip_si1.configuration.files';
+    public const CONFIG_DIRECTORY        = 'dgfip_si1.configuration.root_dir';
+    public const CONFIG_PATH_PATTERNS    = 'dgfip_si1.configuration.path_patterns';
+    public const CONFIG_NAME_PATTERNS    = 'dgfip_si1.configuration.name_patterns';
+    public const CONFIG_SORT_BY_NAME     = 'dgfip_si1.configuration.sort_by_name';
+    public const CONFIG_SEARCH_RECURSIVE = 'dgfip_si1.configuration.search_recursive';
 
     public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
     public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
@@ -72,18 +75,22 @@ class ApplicationSchema implements ConfigurationInterface
                     ->info('directory patterns that can contain configuration files')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->scalarNode('search_root')
+                        ->scalarNode('root_dir')
                             ->info("configuration search root - default is application root directory")
                         ->end()
-                        ->arrayNode('directories')
+                        ->arrayNode('path_patterns')
                             ->info('directory patterns that can contain configuration files (default = none)')
                             ->scalarPrototype()->end()
                         ->end()
-                        ->arrayNode('files')
+                        ->arrayNode('name_patterns')
                             ->info('file patterns of configuration files (default = \'config.yml\')')
                             ->defaultValue(['config.yml'])
                             ->scalarPrototype()->end()
                         ->end()
+                        ->booleanNode('sort_by_name')->defaultFalse()
+                            ->info("sort files strictly by filename (instead of by full path)")->end()
+                        ->booleanNode('search_recursive')->defaultFalse()
+                            ->info("recurse search in sub directories")->end()
                     ->end()
                 ->end()
                 ->arrayNode('runtime')

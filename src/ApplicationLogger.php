@@ -64,7 +64,7 @@ class ApplicationLogger implements LoggerInterface
             if (!is_string($logfile)) {
                 $logfile = $config->get(CONF::APPLICATION_NAME).".log";
             }
-            $logContext['file'] = "$logDirectory/$logfile";
+            $logContext = [ 'name' => 'new ApplicationLogger', 'file' => "$logDirectory/$logfile" ];
             $consoleLogger->notice("starting file logger. Filename = {file}", $logContext);
             /** @var \Monolog\Level $configuredLogLevel */
             $configuredLogLevel = $config->get(CONF::LOG_LEVEL);

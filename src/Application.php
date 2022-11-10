@@ -19,23 +19,13 @@ use DgfipSI1\ConfigHelper\ConfigHelper;
 use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
-use DgfipSI1\Application\Listeners\InputOptionsToConfig as ListenersInputOptionsToConfig;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
 use League\Container\ContainerAwareInterface;
 use League\Container\Definition\DefinitionInterface;
-use Monolog\Logger as Monolog;
-use Monolog\Handler\StreamHandler;
-use Monolog\Level as MonLvl;
-use Monolog\Processor\PsrLogMessageProcessor;
-use Monolog\Formatter\LineFormatter;
-use Monolog\Handler\PsrHandler;
 use Psr\Log\LoggerInterface;
-use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
 use Robo\Robo;
 use Robo\Runner as RoboRunner;
-use Symfony\Component\Config\Definition\ConfigurationInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Application as SymfoApp;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\LogicException;
@@ -108,6 +98,7 @@ class Application extends SymfoApp
         $this->setupApplicationConfig();
 
         $this->config    = new ConfigHelper(new BaseSchema());
+        $this->config->setLogger($this->logger);
         $this->container = new ApplicationContainer();
         $this->classLoader = $classLoader;
     }
@@ -291,7 +282,8 @@ class Application extends SymfoApp
                 }
                 $this->logger->debug("Configuration file {file} loaded.", $logContext);
                 $this->intConfig->setDefault(CONF::RUNTIME_INT_CONFIG, $file);
-                $this->intConfig->setDefault(CONF::RUNTIME_ROOT_DIRECTORY, $file);
+                $this->intConfig->setDefault(CONF::RUNTIME_ROOT_DIRECTORY, realpath(dirname($file)));
+
                 break;
             }
         }
@@ -574,32 +566,47 @@ class Application extends SymfoApp
             /** @var string $filename */
             $filename = $this->input->getOption('config');
             if ($filename && file_exists($filename)) {
+                $logCtx = [ 'file' => $filename];
+                $this->logger->debug("Loading configfile: {file}", $logCtx);
                 $this->config->addFile($filename);
             } else {
                 throw new ConfigFileNotFoundException(sprintf("Configuration file '%s' not found", $filename));
             }
         } else {
-        /* Load default configuration */
-            /** @var string $directory */
-            $directory = $this->intConfig->get(CONF::CONFIG_DIR) ?? '.';
-            $directory = ''.realpath($directory);
-            if (!is_dir($directory)) {
-                throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $directory));
+            /* Load default configuration */
+            $dir = $this->intConfig->get(CONF::CONFIG_DIRECTORY) ?? $this->intConfig->get(CONF::RUNTIME_ROOT_DIRECTORY);
+            if (null === $dir) {
+                $dir = realpath($_SERVER['PWD']);
             }
-            /** see if we asked for this file or if it is a default configuration */
-            $askedFiles = !empty($this->intConfig->getRaw(CONF::CONFIG_FILES));
-            /** @var array<string> $configuredFiles */
-            $configuredFiles = $this->intConfig->get(CONF::CONFIG_FILES);
-            foreach ($configuredFiles as $file) {
-                $logCtx['file'] = $file;
-                $fullPath = $directory.DIRECTORY_SEPARATOR.$file;
-                if (file_exists($fullPath)) {
-                    $this->config->addFile($fullPath);
+            /** @var string $dir */
+            if (!is_dir($dir)) {
+                throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $dir));
+            }
+            /** @var array<string> $pathPatterns */
+            $pathPatterns = $this->intConfig->get(CONF::CONFIG_PATH_PATTERNS);
+            /** @var array<string> $namePatterns */
+            $namePatterns = $this->intConfig->get(CONF::CONFIG_NAME_PATTERNS);
+            $recurse =  $this->intConfig->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
+            /** @var bool $sortByName */
+            $sortByName = $this->intConfig->get(CONF::CONFIG_SORT_BY_NAME);
+            $logCtx['paths'] = "[".($pathPatterns ? implode(', ', $pathPatterns) : '')."]";
+            $logCtx['names'] = "[".($namePatterns ? implode(', ', $namePatterns) : '')."]";
+            $logCtx['sort']  = $sortByName ? 'name' : 'path';
+            $logCtx['depth'] = $recurse;
+            $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
+            $this->logger->debug($msg, $logCtx);
+            $this->config->findConfigFiles($dir, $pathPatterns, $namePatterns, $sortByName, $recurse);
+        }
+        if (null !== $this->input->getOption('add-config')) {
+            /** @var array<string> $filenames */
+            $filenames = $this->input->getOption('add-config');
+            foreach ($filenames as $file) {
+                if ($file && file_exists($file)) {
+                    $logCtx = [ 'file' => $file];
+                    $this->logger->debug("Adding configfile: {file}", $logCtx);
+                    $this->config->addFile($file);
                 } else {
-                    if ($askedFiles) {
-                        throw new ConfigFileNotFoundException(sprintf("Config file '%s' not found", $file));
-                    }
-                    $this->logger()->info("Default config file {file} not found", $logCtx);
+                    throw new ConfigFileNotFoundException(sprintf("Configuration file '%s' not found", $file));
                 }
             }
         }
