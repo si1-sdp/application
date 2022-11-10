@@ -574,28 +574,36 @@ class Application extends SymfoApp
             }
         } else {
             /* Load default configuration */
+            $askedConfig = true;
+            if (null === $this->intConfig->get(CONF::CONFIG_DIRECTORY)) {
+                $askedConfig = false;
+            }
             $dir = $this->intConfig->get(CONF::CONFIG_DIRECTORY) ?? $this->intConfig->get(CONF::RUNTIME_ROOT_DIRECTORY);
             if (null === $dir) {
                 $dir = realpath($_SERVER['PWD']);
+                $dir = '';
             }
             /** @var string $dir */
             if (!is_dir($dir)) {
-                throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $dir));
+                if (true === $askedConfig) {
+                    throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $dir));
+                }
+            } else {
+                /** @var array<string> $pathPatterns */
+                $pathPatterns = $this->intConfig->get(CONF::CONFIG_PATH_PATTERNS);
+                /** @var array<string> $namePatterns */
+                $namePatterns = $this->intConfig->get(CONF::CONFIG_NAME_PATTERNS);
+                $recurse =  $this->intConfig->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
+                /** @var bool $sortByName */
+                $sortByName = $this->intConfig->get(CONF::CONFIG_SORT_BY_NAME);
+                $logCtx['paths'] = "[".($pathPatterns ? implode(', ', $pathPatterns) : '')."]";
+                $logCtx['names'] = "[".($namePatterns ? implode(', ', $namePatterns) : '')."]";
+                $logCtx['sort']  = $sortByName ? 'name' : 'path';
+                $logCtx['depth'] = $recurse;
+                $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
+                $this->logger->debug($msg, $logCtx);
+                $this->config->findConfigFiles($dir, $pathPatterns, $namePatterns, $sortByName, $recurse);
             }
-            /** @var array<string> $pathPatterns */
-            $pathPatterns = $this->intConfig->get(CONF::CONFIG_PATH_PATTERNS);
-            /** @var array<string> $namePatterns */
-            $namePatterns = $this->intConfig->get(CONF::CONFIG_NAME_PATTERNS);
-            $recurse =  $this->intConfig->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
-            /** @var bool $sortByName */
-            $sortByName = $this->intConfig->get(CONF::CONFIG_SORT_BY_NAME);
-            $logCtx['paths'] = "[".($pathPatterns ? implode(', ', $pathPatterns) : '')."]";
-            $logCtx['names'] = "[".($namePatterns ? implode(', ', $namePatterns) : '')."]";
-            $logCtx['sort']  = $sortByName ? 'name' : 'path';
-            $logCtx['depth'] = $recurse;
-            $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
-            $this->logger->debug($msg, $logCtx);
-            $this->config->findConfigFiles($dir, $pathPatterns, $namePatterns, $sortByName, $recurse);
         }
         if (null !== $this->input->getOption('add-config')) {
             /** @var array<string> $filenames */
