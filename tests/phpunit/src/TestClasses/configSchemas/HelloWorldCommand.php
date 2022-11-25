@@ -1,5 +1,8 @@
 <?php
-namespace hello_world\Commands;
+/*
+ * This file is part of dgfip-si1/process-helper
+ */
+namespace DgfipSI1\ApplicationTests\TestClasses\configSchemas;
 
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\Config\ApplicationAwareInterface;
@@ -9,15 +12,25 @@ use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Input\InputOption;
 
-
-#[AsCommand(name: 'hello', description: 'A symfony command hello world example' )]
+#[AsCommand(name: 'hello', description: 'A symfony command hello world example')]
+/**
+ * Hello world command test class
+ */
 class HelloWorldCommand extends Command implements ApplicationAwareInterface
 {
     public const CONFIG_YELL   = 'hello.greeting.yell';
     public const CONFIG_FORMAL = 'hello.greeting.formal';
-    /** 
-     * @inheritDoc 
+    public const DUMPED_SHEMA =
+    '    commands:
+        hello:
+            options:
+                yell:                 false
+                formal:               true
+';
+    /**
+     * @inheritDoc
      */
     public function getConfigTreeBuilder()
     {
@@ -25,8 +38,9 @@ class HelloWorldCommand extends Command implements ApplicationAwareInterface
         $treeBuilder->getRootNode()
             ->children()
                 ->booleanNode('yell')->defaultFalse()->end()
-                ->scalarNode('formal')->defaultFalse()->end()
+                ->scalarNode('formal')->defaultTrue()->end()
             ->end();
+
         return $treeBuilder;
     }
     /**
@@ -34,34 +48,23 @@ class HelloWorldCommand extends Command implements ApplicationAwareInterface
      */
     public function getConfigOptions()
     {
-        $opts = [];
-        $opts[] = new MappedOption('formal', OptionType::Boolean, 'Should I be more formal?');
+        $opts = [  new MappedOption('test-a', OptionType::Array)   ];
+
         return $opts;
     }
-    // protected function configure(): void
-    // {
-    //     /** options are automatically added by getConfigOptions function */
-    //     $this
-    //         ->addArgument('who', description: 'Who should we say hello to.', default: 'world')
-    //         ->setHelp('This command allows you to say hello...');
-    // }
      /**
      * @inheritDoc
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        /** @var string $user */
         $user = $this->config->get("options.user");
-        $fullUser = $this->config->get("people.$user.first_name");
-        $formal = $this->config->get("commands.hello.options.formal");
-        if ($formal) {
-            $fullUser = $this->config->get("people.$user.title")." ".$this->config->get("people.$user.name");
-        }
-        $text = "hello $fullUser";
+        $text = "hello $user";
         if ($this->config->get("commands.hello.options.yell")) {
             $text = strtoupper($text);
         }
         $output->writeln($text);
+
         return 0;
     }
-
 }

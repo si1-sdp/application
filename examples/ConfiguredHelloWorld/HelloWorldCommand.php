@@ -4,11 +4,12 @@ namespace hello_world\Commands;
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\Config\ApplicationAwareInterface;
 use DgfipSI1\Application\Config\MappedOption;
-use DgfipSI1\Application\Config\OptionType;
+use DgfipSI1\ConfigHelper\ConfigHelper;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Input\InputOption;
 
 
 #[AsCommand(name: 'hello', description: 'A symfony command hello world example' )]
@@ -35,7 +36,10 @@ class HelloWorldCommand extends Command implements ApplicationAwareInterface
     public function getConfigOptions()
     {
         $opts = [];
-        $opts[] = new MappedOption('formal', OptionType::Boolean, 'Should I be more formal?');
+        // $opt = new InputOption('yell',   null, InputOption::VALUE_NEGATABLE, 'Should I yell while greeting?');
+        // $opts[] = new MappedOption($opt, self::CONFIG_YELL);
+        // $opt = new InputOption('formal', null, InputOption::VALUE_NONE, 'Should I be more formal?');
+        // $opts[] = new MappedOption($opt, self::CONFIG_FORMAL);
         return $opts;
     }
     // protected function configure(): void

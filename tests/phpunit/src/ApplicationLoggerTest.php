@@ -31,13 +31,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *  - DgfipSI1\Application\Application
  *  - DgfipSI1\Application\ApplicationSchema
  *
- * @uses \DgfipSI1\Application\Application
- * @uses \DgfipSI1\Application\ApplicationSchema
- * @uses \DgfipSI1\Application\ApplicationContainer
- * @uses \DgfipSI1\Application\Config\BaseSchema
- * @uses \DgfipSI1\Application\Listeners\InputOptionsToConfig
- * @uses \DgfipSI1\Application\Contracts\ConfigAwareTrait
- * @uses \DgfipSI1\Application\Contracts\LoggerAwareTrait
+ * @uses DgfipSI1\Application\ApplicationSchema
  */
 class ApplicationLoggerTest extends LogTestCase
 {

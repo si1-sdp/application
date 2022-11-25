@@ -3,7 +3,7 @@
  * This file is part of DgfipSI1\ConfigHelper
  */
 
-namespace DgfipSI1\ApplicationTests;
+namespace DgfipSI1\ApplicationTests\TestClasses\configSchemas;
 
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;

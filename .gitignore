@@ -3,9 +3,13 @@ tests/phpunit/.phpunit.cache/
 tests/results/
 tests/tmp/
 vendor/
+log/
 examples/*/tests
 diff.sh
 sync.sh
+test_applis.sh
+
 .vscode
 .idea
 robo.md
+

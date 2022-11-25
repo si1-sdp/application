@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-use \DgfipSI1\Application\Application;
+use \DgfipSI1\Application\SymfonyApplication;
 
 $cwd = isset($_SERVER['PWD']) && is_dir($_SERVER['PWD']) ? $_SERVER['PWD'] : getcwd();
 $loader = false;
@@ -13,6 +13,6 @@ if (file_exists($autoloadFile = __DIR__ . '/vendor/autoload.php')
 } else {
     throw new \Exception("Could not locate autoload.php. cwd is $cwd; __DIR__ is " . __DIR__);
 }
-$app = new Application($loader, $argv);
+$app = new SymfonyApplication($loader, $argv);
 $statusCode = $app->go(); 
 exit($statusCode);

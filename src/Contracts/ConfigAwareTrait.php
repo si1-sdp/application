@@ -35,7 +35,7 @@ trait ConfigAwareTrait
      *
      * @return \Consolidation\Config\ConfigInterface
      */
-    public function conf()
+    public function getConfig()
     {
         return $this->config;
     }

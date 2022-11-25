@@ -25,7 +25,7 @@ class BaseSchema implements ConfigurationInterface
         $treeBuilder->getRootNode()
             ->children()
                 ->arrayNode('options')
-                    ->ignoreExtraKeys()
+                    ->ignoreExtraKeys(false)
                 ->end()
             ->end();
 

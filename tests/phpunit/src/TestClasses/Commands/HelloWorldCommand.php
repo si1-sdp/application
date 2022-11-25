@@ -2,19 +2,18 @@
 /*
  * This file is part of DgfipSI1\Application
  */
-namespace DgfipSI1\ApplicationTests\symfonyBadCommands;
+namespace DgfipSI1\ApplicationTests\TestClasses\Commands;
 
-use Composer\Console\Input\InputArgument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Input\InputOption;
 
 /**
- * class UnnamedCommand.php : provides the hello world symfony command
+ * class HelloWorldCommand : provides the hello world symfony command
  */
-class UnnamedCommand extends Command
+#[AsCommand(name: 'hello', description: 'A symfony command hello world example')]
+class HelloWorldCommand extends Command
 {
      /**
      * @inheritDoc

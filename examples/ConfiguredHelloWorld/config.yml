@@ -9,3 +9,10 @@ people:
     first_name: Jane
 options:
     user: JSmith
+    array_opt: [ 'one', 'two' ]
+    boolean_opt: true
+    scalar_opt: 'a string'
+commands:
+    hello:
+        options:
+            formal: true

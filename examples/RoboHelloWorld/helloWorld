@@ -1,12 +1,12 @@
 #!/usr/bin/env php
 <?php
 
-use \DgfipSI1\Application\Application;
+use \DgfipSI1\Application\RoboApplication;
 $classLoader = require __DIR__.'/vendor/autoload.php';
-$app = new Application($classLoader, $argv);
+$app = new RoboApplication($classLoader, $argv);
 $app->setName("Hello World");
 $app->setVersion("1.0");
-$app->findRoboCommands('roboFiles');
+$app->setNameSpace('roboFiles');
 $statusCode=$app->go();
 
 exit($statusCode);
