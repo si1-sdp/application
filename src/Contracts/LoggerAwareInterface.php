@@ -10,12 +10,20 @@ use Psr\Log\LoggerInterface;
 /**
  * LoggerAwareInterface - get access to logger
  */
-interface LoggerAwareInterface extends \Psr\Log\LoggerAwareInterface
+interface LoggerAwareInterface
 {
+    /**
+     * Sets a logger instance on the object.
+     *
+     * @param LoggerInterface $logger
+     *
+     * @return self
+     */
+    public function setLogger(LoggerInterface $logger);
     /**
      * Get the logger.
      *
      * @return LoggerInterface
      */
-    public function logger();
+    public function getLogger();
 }

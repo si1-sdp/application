@@ -5,6 +5,8 @@
 
 namespace DgfipSI1\Application;
 
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\NodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
@@ -15,8 +17,8 @@ class ApplicationSchema implements ConfigurationInterface
 {
     public const APPLICATION_NAME        = 'dgfip_si1.application.name';
     public const APPLICATION_VERSION     = 'dgfip_si1.application.version';
-    public const APPLICATION_TYPE        = 'dgfip_si1.application.type';
     public const APPLICATION_NAMESPACE   = 'dgfip_si1.application.commands_namespace';
+    public const DEFAULT_NAMESPACE       = 'Commands';
 
     public const LOG_DIRECTORY           = 'dgfip_si1.log.directory';
     public const LOG_FILENAME            = 'dgfip_si1.log.filename';
@@ -36,6 +38,13 @@ class ApplicationSchema implements ConfigurationInterface
     public const RUNTIME_INT_CONFIG      = "dgfip_si1.runtime.app_config_file";
     public const RUNTIME_ROOT_DIRECTORY  = "dgfip_si1.runtime.root_directory";
 
+
+    public const GLOBAL_OPTIONS          = 'dgfip_si1.global_options';
+    public const OPT_SHORT               = 'short_option';
+    public const OPT_DESCRIPTION         = 'description';
+    public const OPT_DEFAULT_VALUE       = 'default';
+    public const OPT_TYPE                = 'type';
+
     /**
      * The main configuration tree
      *
@@ -51,9 +60,7 @@ class ApplicationSchema implements ConfigurationInterface
                     ->children()
                         ->scalarNode('name')->info("Application name")->end()
                         ->scalarNode('version')->info("Application version")->end()
-                        ->enumNode('type')->values(['symfony', 'robo'])->defaultValue('symfony')
-                            ->info('type : symfony or robo')->end()
-                        ->scalarNode('commands_namespace')->defaultValue('Commands')
+                        ->scalarNode('commands_namespace')->defaultValue(self::DEFAULT_NAMESPACE)
                             ->info("namespace for commands")->end()
                     ->end()
                 ->end()
@@ -93,11 +100,61 @@ class ApplicationSchema implements ConfigurationInterface
                             ->info("recurse search in sub directories")->end()
                     ->end()
                 ->end()
+                ->append($this->inputOptions('global_options'))
+                ->arrayNode('command_options')
+                    ->useAttributeAsKey('command_name')
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('command_name')->info('command name as defined in AsCommand attribute')->end()
+                            ->append($this->inputOptions('options'))
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('runtime')
-                    ->scalarPrototype()->end()
+                    ->variablePrototype()->end()
                 ->end()
             ->end();
 
         return $treeBuilder;
+    }
+    /**
+     * Schema part for a list of input options
+     *
+     * @param string $name
+     *
+     * @return NodeDefinition
+     */
+    protected function inputOptions($name)
+    {
+        $treeBuilder = new TreeBuilder($name);
+        $node = $treeBuilder->getRootNode();
+        /** @phpstan-ignore-next-line */
+        $node->useAttributeAsKey('name')
+            ->arrayPrototype()
+                ->children()
+                    ->scalarNode('name')
+                        ->info('name that users must type to pass this option (e.g. --iterations=5)')->end()
+                    ->scalarNode('short_option')
+                        ->validate()
+                            ->ifTrue(function ($s) {
+                                return !(is_string($s) && strlen($s) === 1);
+                            })
+                            ->thenInvalid('Short option should be a one letter string.')
+                            ->end()
+                        ->info('optional one letter shortcut of the option name, (e.g. `i` for `-i`)')
+                        ->end()
+                    ->scalarNode('description')
+                        ->info('the option description displayed when showing the command help')->end()
+                    ->variableNode('default')
+                        ->info('the default value of the option (for those which allow to pass values)')->end()
+                    ->enumNode('type')->values(['array', 'boolean', 'scalar'])->defaultValue('scalar')
+                        ->info("Type of option \n
+    - array   : option accepts multiple values (e.g. --dir=/foo --dir=/bar)
+    - scalar  : --iterations=5 or --name=John
+    - boolean : --yell  ")->end()
+                ->end()
+            ->end();
+
+        return $node;
     }
 }

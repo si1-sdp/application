@@ -4,26 +4,26 @@
  */
 namespace DgfipSI1\Application\Contracts;
 
-use Consolidation\Config\ConfigInterface;
+use DgfipSI1\Application\ApplicationInterface;
 
 /**
  * ConfigAwareInterface - get access to config
  */
-interface ConfigAwareInterface
+interface AppAwareInterface
 {
    /**
      * Set the config reference.
      *
-     * @param \Consolidation\Config\ConfigInterface $config
+     * @param ApplicationInterface $application
      *
      * @return $this
      */
-    public function setConfig(ConfigInterface $config);
+    public function setApplication(ApplicationInterface $application);
 
     /**
      * Get the config reference.
      *
-     * @return \Consolidation\Config\ConfigInterface
+     * @return ApplicationInterface
      */
-    public function getConfig();
+    public function getApplication();
 }

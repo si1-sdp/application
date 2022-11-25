@@ -2,3 +2,28 @@ dgfip_si1:
     application:
         name: Configured hello world
         version: '0.99.0'
+    log:
+        directory: '.'
+        filename: hello.log
+        level: debug
+    configuration:
+        name_patterns:
+            - 'config.yml'
+    global_options:
+        user:
+            type: scalar
+            description: user id 
+    command_options:
+        hello:
+            options:
+                yell:
+                    type: boolean
+                    description: 'yell !!!'
+                    short_option: Y
+        info:
+            options:
+                list:
+                    type: boolean
+                    description: 'list all people'
+
+        

@@ -2,12 +2,12 @@
 /*
  * This file is part of dgfip-si1/application
  */
-namespace DgfipSI1\ApplicationTests\Utils\TestClasses;
+namespace DgfipSI1\ApplicationTests\TestClasses\ForDiscoverer;
 
 /**
  *    RoboFile for Application test
  */
-trait TestTrait
+class TestRoboClass extends \Robo\Tasks
 {
     /**
      * Hello test

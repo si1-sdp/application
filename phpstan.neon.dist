@@ -11,4 +11,4 @@ parameters:
       paths: 
         - src/ApplicationSchema.php
         - src/Config/BaseSchema.php
-        - tests/phpunit/src/AppTestConfigSchema.php
+        - tests/phpunit/src/TestClasses/configSchemas/*

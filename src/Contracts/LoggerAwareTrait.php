@@ -5,6 +5,7 @@
 namespace DgfipSI1\Application\Contracts;
 
 use Psr\Log\LoggerInterface;
+use DgfipSI1\Application\Exception\RuntimeException;
 
 /**
  * Implements methods for loggerAwareInterface
@@ -12,29 +13,31 @@ use Psr\Log\LoggerInterface;
 trait LoggerAwareTrait
 {
     /**
-     * @var LoggerInterface
+     * @var LoggerInterface|null $logger
      */
     protected $logger;
 
     /**
-     * Set the config management object.
-     *
      * @param LoggerInterface $logger
      *
-     * @return void
+     *  @return self
      */
-    public function setLogger(LoggerInterface $logger): void
+    public function setLogger(LoggerInterface $logger)
     {
         $this->logger = $logger;
+
+        return $this;
     }
 
     /**
-     * Get the config management object.
-     *
      * @return LoggerInterface
      */
-    public function logger()
+    public function getLogger()
     {
-        return $this->logger;
+        if ($this->logger instanceof LoggerInterface) {
+            return $this->logger;
+        }
+
+        throw new RuntimeException('No logger implementation has been set.');
     }
 }

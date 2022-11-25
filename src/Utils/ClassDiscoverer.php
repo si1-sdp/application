@@ -7,16 +7,32 @@ namespace DgfipSI1\Application\Utils;
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
+use DgfipSI1\Application\Exception\RuntimeException;
+use Hamcrest\Arrays\IsArray;
+use League\Container\Argument\ResolvableArgument;
+use League\Container\ContainerAwareInterface;
+use League\Container\ContainerAwareTrait;
+use League\Container\Definition\DefinitionInterface;
 use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
+use Symfony\Component\Console\Exception\LogicException;
 
 /**
  * Mapped Option class
  */
-class ClassDiscoverer implements LoggerAwareInterface
+class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
 {
     use LoggerAwareTrait;
+    use ContainerAwareTrait;
+
+    /** @var array<string,array<DiscovererDefinition>> $discoverers */
+    protected $discoverers;
+
     /** @var ClassLoader $classLoader  */
     protected $classLoader;
+
+    /** @var array<string,int> $tagCount  */
+    protected $tagCount;
+
     /**
      * Undocumented function
      *
@@ -27,55 +43,129 @@ class ClassDiscoverer implements LoggerAwareInterface
     public function __construct($classLoader)
     {
         $this->classLoader = $classLoader;
+        $this->discoverers = [];
+        $this->tagCount    = [];
     }
-        /**
-     * Discovers commands that are PSR4 auto-loaded.
+    /**
+     * Add discoverer
+     * Note :
+     * - dependencies work with logical AND : all dependencies have to be met
+     * - exclusions work with logical OR : anny exclusion filters class out.
+
+     * @param array<string>|string $namespaces
+     * @param string               $tag
+     * @param array<string>|string $deps
+     * @param array<string>|string $excludeDeps
+     * @param string|null          $idAttribute
+     * @param boolean              $emptyOk
      *
-     * @param string            $namespace
-     * @param class-string|null $dependency Filter classes on class->implementsInterface(dependency)
-     *                                      or class->isSubClassOf(dependency)
-     * @param bool              $silent     Do not warn if no class found
-     *
-     * @return array<string>
-     *
-     * @throws \ReflectionException
+     * @return void
      */
-    public function discoverPsr4Classes($namespace, $dependency = null, $silent = false): array
+    public function addDiscoverer($namespaces, $tag, $deps, $excludeDeps = [], $idAttribute = null, $emptyOk = true)
     {
-        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace, 'dependency' => $dependency ];
-        $depRef = null;
-        if (null !== $dependency) {
-            try {
-                $depRef = new \ReflectionClass($dependency);
-                /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
-            } catch (\ReflectionException $e) {
-                if (null === $this->logger) {
-                    throw $e;
-                }
-                $this->logger->warning($e->getMessage(), $logContext);
-
-                return [];
+        $def = new DiscovererDefinition($namespaces, $tag, $deps, $excludeDeps, $idAttribute);
+        if (false === $emptyOk) {
+            $this->tagCount[$tag] = 0;
+        }
+        if (!empty($def->getErrMessages())) {
+            foreach ($def->getErrMessages() as $msg) {
+                $this->getLogger()->warning($msg, ['name' => 'addDiscoverer']);
             }
         }
-        $classes = $this->discoverClassesInNamespace($namespace);
-        $classes = $this->filterClasses($classes, $depRef);
-        if (null !== $this->logger) {
-            if (empty($classes) && false === $silent) {
-                $msg = "No classes subClassing or implementing {dependency} found in namespace '{namespace}'";
-                $this->logger()->warning($msg, $logContext);
-            } else {
-                foreach ($classes as $class) {
-                    $logContext['class'] = $class;
-                    $this->logger->debug("2/2 - Filter : {class} matches", $logContext);
-                }
-                $count = count($classes);
-                $this->logger->info("2/2 - $count classe(s) found in namespace '{namespace}'", $logContext);
-            }
+        foreach ($def->getNamespaces() as $ns) {
+            $this->discoverers[$ns][] = $def;
         }
-
-        return $classes;
     }
-
+    /**
+     * Discovers all classes in $this->discoverers array
+     *
+     * @return void
+     */
+    public function discoverAllClasses()
+    {
+        $logContext = ['name'  => 'discoverAllClasses'];
+        $this->getLogger()->debug("Discovering all classes...", $logContext);
+        foreach (array_keys($this->discoverers) as $namespace) {
+            $classes = $this->discoverClassesInNamespace($namespace);
+            $classNames = function (\ReflectionClass $r) {
+                return $r->getShortName();
+            };
+            foreach ($this->discoverers[$namespace] as $def) {
+                $logContext = [
+                    'name'      => 'discoverAll',
+                    'tag'       => $def->getTag(),
+                    'deps'      => "[".implode(', ', array_map($classNames, $def->getDependencies()))."]",
+                    'excludes'  => "[".implode(', ', array_map($classNames, $def->getExcludeDeps()))."]",
+                    'attribute' => $def->getIdAttribute() ?? '',
+                ];
+                $filtered = $this->filterClasses($classes, $def->getDependencies(), $def->getExcludeDeps());
+                if (array_key_exists($def->getTag(), $this->tagCount)) {
+                    $this->tagCount[$def->getTag()] += count($filtered);
+                }
+                $this->registerClasses($filtered, $def->getTag(), $def->getIdAttribute());
+                $logContext['count'] = count($filtered);
+                $message = "{tag} : Search {deps} classes, excluding {excludes} : {count} classe(s) found.";
+                $this->getLogger()->notice($message, $logContext);
+            }
+        }
+        foreach ($this->tagCount as $tag => $count) {
+            if ($count < 1) {
+                throw new RuntimeException(sprintf('No classes found for tag %s', $tag));
+            }
+        }
+    }
+    /**
+     * Add classes to container, tag according to definition
+     *
+     * @param array<class-string> $filtered
+     * @param string              $tag
+     * @param string|null         $idAttribute
+     *
+     * @return void
+     */
+    protected function registerClasses($filtered, $tag, $idAttribute = null)
+    {
+        $logContext = ['name'  => 'registerClasses', 'tag' => $tag];
+        /** @var class-string $class */
+        foreach ($filtered as $class) {
+            $logContext['class'] = $class;
+            $serviceId = $class;
+            if (null !== $idAttribute) {
+                $attributes = (new \ReflectionClass($class))->getAttributes();
+                $serviceId = null;
+                foreach ($attributes as $attribute) {
+                    $attributeArguments = $attribute->getArguments();
+                    if (array_key_exists($idAttribute, $attributeArguments)) {
+                        $serviceId = $attributeArguments[$idAttribute];
+                        break;
+                    }
+                }
+                if (null === $serviceId) {
+                    $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
+                    $this->getLogger()->warning($msg, $logContext);
+                    continue;
+                }
+            }
+            $logContext['id'] = $serviceId;
+            if ($this->getContainer()->has((string) $class)) {
+                $this->getLogger()->debug("Class {class} already in container", $logContext);
+                $serviceDefinition = $this->getContainer()->extend((string) $class);
+            } else {
+                $this->getLogger()->debug("Adding class {class} to container", $logContext);
+                $serviceDefinition = $this->getContainer()->addShared((string) $class);
+            }
+            if ($serviceId !== $class) {
+                if (!$serviceDefinition->hasTag((string) $serviceId)) {
+                    $this->getLogger()->debug("Add tag {id} for class {class}", $logContext);
+                    $serviceDefinition->addTag((string) $serviceId);
+                }
+            }
+            if (!$serviceDefinition->hasTag($tag)) {
+                $this->getLogger()->debug("Add tag {tag} for class {class}", $logContext);
+                $serviceDefinition->addTag($tag);
+            }
+        }
+    }
     /** discovers classes that are in a directory ($namespace) imediatly under 'src'
      *
      * @param string $namespace
@@ -84,57 +174,64 @@ class ClassDiscoverer implements LoggerAwareInterface
      */
     protected function discoverClassesInNamespace($namespace)
     {
-        $logContext = ['name' => 'discoverPsr4Classes', 'namespace' => $namespace ];
+        $logContext = ['name' => 'discoverClassesInNamespace', 'namespace' => $namespace ];
         $classes = (new RelativeNamespaceDiscovery($this->classLoader))
             ->setRelativeNamespace($namespace)
             ->getClasses();
-        if (null !== $this->logger) {
-            foreach ($classes as $class) {
-                $logContext['class'] = $class;
-                $this->logger->debug("1/2 - search {namespace} namespace - found {class}", $logContext);
-            }
-            $this->logger->info("1/2 - ".count($classes)." classe(s) found.", $logContext);
+        foreach ($classes as $class) {
+            $logContext['class'] = $class;
+            $this->getLogger()->debug("Search {namespace} namespace - found {class}", $logContext);
         }
+        $this->getLogger()->info(count($classes)." classe(s) found in namespace {namespace}.", $logContext);
 
         return $classes;
     }
     /**
-     * filters out classes not dependent of $dependency
+     * filters out classes not dependent of $dependencies
      * also filters out abstract classes, interfaces and traits
+     * - dependencies work with logical AND : all dependencies have to be met
+     * - exclusions work with logical OR : anny exclusion filters class out.
      *
-     * @param array<string>         $classes
-     * @param \ReflectionClass|null $dependency
+     * @param array<string>           $classes
+     * @param array<\ReflectionClass> $dependencies
+     * @param array<\ReflectionClass> $excludeDeps
      *
-     * @return array<string>
+     * @return array<class-string>
      */
-    protected function filterClasses($classes, $dependency)
+    protected function filterClasses($classes, $dependencies, $excludeDeps = [])
     {
-        $logContext = ['name' => 'discoverPsr4Classes' ];
         $filteredClasses = [];
-        foreach ($classes as $class) {
+        foreach ($classes as $className) {
+            $logContext = ['name' => 'filterClasses', 'class' => $className ];
+            $this->getLogger()->debug("Applying Filters to {class}", $logContext);
             try {
-                /** @var class-string $class */
-                $refClass = new \ReflectionClass($class);
+                /** @var class-string $className */
+                $class = new \ReflectionClass($className);
                 /** @phpstan-ignore-next-line -- dead catch falsely detected by phpstan */
             } catch (\ReflectionException $e) {
-                if (null !== $this->logger) {
-                    $this->logger()->warning("2/2 ".$e->getMessage(), $logContext);
-                    continue;
-                } else {
-                    throw $e;
-                }
-            }
-            if ($refClass->isAbstract() || $refClass->isInterface() || $refClass->isTrait()) {
+                $this->getLogger()->warning($e->getMessage(), $logContext);
                 continue;
             }
-            if (null === $dependency) {
-                $filteredClasses[] = $class;
-            } else {
-                if (($dependency->isInterface() && $refClass->implementsInterface($dependency)) ||
-                     $refClass->isSubclassOf($dependency)) {
-                    $filteredClasses[] = $class;
+            if ($class->isAbstract() || $class->isInterface() || $class->isTrait()) {
+                continue;
+            }
+            if (!empty($excludeDeps)) {
+                foreach ($excludeDeps as $dep) {
+                    if (($dep->isInterface() && $class->implementsInterface($dep)) || $class->isSubclassOf($dep)) {
+                        continue 2;
+                    }
                 }
             }
+            foreach ($dependencies as $dep) {
+                if (!(
+                    ($dep->isInterface() && $class->implementsInterface($dep)) ||
+                    $class->isSubclassOf($dep)
+                )) {
+                    continue 2;
+                }
+            }
+            $filteredClasses[] = $className;
+            $this->getLogger()->debug("Keeping {class}", $logContext);
         }
 
         return $filteredClasses;
