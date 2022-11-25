@@ -180,7 +180,7 @@ class ClassDiscovererTest extends LogTestCase
         $class = new ReflectionClass(ClassDiscoverer::class);
         $dcinMethod = $class->getMethod('discoverClassesInNamespace');
         $dcinMethod->setAccessible(true);
-
+        /** @var array<class-string> $classes */
         $classes = $dcinMethod->invokeArgs($disc, [ self::TEST_NAMESPACE ]);
         $refClasses = [
             TestRoboClass::class,
@@ -189,9 +189,10 @@ class ClassDiscovererTest extends LogTestCase
             AbstractTestClass::class,
             TestTrait::class,
         ];
-        $this->assertEquals($refClasses, $classes);
+        $this->assertEquals(count($refClasses), count($classes));
         foreach ($refClasses as $refClass) {
             $this->assertDebugInLog("found $refClass", interpolate: true);
+            $this->assertTrue(in_array($refClass, $classes));
         }
         $this->assertInfoInLog("5 classe(s) found in namespace");
         $this->assertLogEmpty();
