@@ -40,10 +40,6 @@ class ApplicationSchema implements ConfigurationInterface
 
 
     public const GLOBAL_OPTIONS          = 'dgfip_si1.global_options';
-    public const OPT_SHORT               = 'short_option';
-    public const OPT_DESCRIPTION         = 'description';
-    public const OPT_DEFAULT_VALUE       = 'default';
-    public const OPT_TYPE                = 'type';
 
     /**
      * The main configuration tree

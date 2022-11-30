@@ -9,6 +9,7 @@ use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\BaseSchema;
+use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
 use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
@@ -82,6 +83,22 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
      * @return string
      */
     public function getNameSpace($tag = null);
+    /**
+     * Adds a mapped option to application configuration
+     *
+     * @param MappedOption $option
+     *
+     * @return void
+     */
+    public function addMappedOption($option);
+    /**
+     * Get mapped options for given command (or global options if no command specified)
+     *
+     * @param string|null $command
+     *
+     * @return array<MappedOption>
+     */
+    public function getMappedOptions($command = null);
     /**
      * Gets the InputDefinition related to this Application.
      */

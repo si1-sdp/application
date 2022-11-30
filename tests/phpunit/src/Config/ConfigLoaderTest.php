@@ -39,7 +39,6 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Config\ConfigLoader
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
- * @uses DgfipSI1\Application\Contracts\AppAwareTrait
  */
 class ConfigLoaderTest extends LogTestCase
 {
@@ -147,7 +146,7 @@ class ConfigLoaderTest extends LogTestCase
         $this->assertLogEmpty();
 
         $loader->getContainer()->addShared(HelloWorldSchema::class)->addTag(AbstractApplication::GLOBAL_CONFIG_TAG);
-        $loader->getContainer()->addShared(HelloWorldCommand::class)->addTag(AbstractApplication::COMMAND_CONFIG_TAG);
+        $loader->getContainer()->addShared(HelloWorldCommand::class)->addTag(SymfonyApplication::COMMAND_CONFIG_TAG);
         $loader->loadConfiguration($event);
 
         /** @var ConfigHelper $config */
@@ -385,7 +384,7 @@ class ConfigLoaderTest extends LogTestCase
         $config = new ConfigHelper();
         $loader->setConfig($config);
         $app = new SymfonyApplication($this->classLoader, $argv);
-        $loader->setApplication($app);
+        $loader->getContainer()->addShared('application', $app);
 
         return $loader;
     }

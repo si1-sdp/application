@@ -7,7 +7,6 @@ namespace DgfipSI1\ApplicationTests\Contracts;
 
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\ApplicationLogger;
-use DgfipSI1\Application\Contracts\AppAwareTrait;
 use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\RuntimeException;
@@ -18,7 +17,6 @@ use PHPUnit\Framework\TestCase;
 
 /**
  *  tests of *Trait
- *  - DgfipSI1\Application\Contracts\*
  * @uses DgfipSI1\Application\AbstractApplication
  * @uses DgfipSI1\Application\ApplicationLogger
  * @uses DgfipSI1\Application\ApplicationSchema
@@ -27,22 +25,10 @@ use PHPUnit\Framework\TestCase;
  */
 class ContractsTest extends TestCase
 {
-    use AppAwareTrait;
     use ConfigAwareTrait;
     use LoggerAwareTrait;
     /**
-     * test AppAwareTrait
-     *
-     * @covers DgfipSI1\Application\Contracts\AppAwareTrait
-     */
-    public function testApplicationAwareTrait(): void
-    {
-        $application = new SymfonyApplication(new ClassLoader());
-        $this->setApplication($application);
-        $this->assertEquals($application, $this->getApplication());
-    }
-    /**
-     * test AppAwareTrait
+     * test ConfigAwareTrait
      *
      * @covers DgfipSI1\Application\Contracts\ConfigAwareTrait
      */
@@ -53,7 +39,7 @@ class ContractsTest extends TestCase
         $this->assertEquals($config, $this->getConfig());
     }
     /**
-     * test AppAwareTrait
+     * test LoggerAwareTrait
      *
      * @covers DgfipSI1\Application\Contracts\LoggerAwareTrait
      */

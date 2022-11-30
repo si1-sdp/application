@@ -4,22 +4,13 @@
  */
 namespace DgfipSI1\Application\Config;
 
-use Composer\Console\Input\InputArgument;
 use Consolidation\Config\ConfigInterface;
 use Consolidation\Config\Util\ConfigOverlay;
 use DgfipSI1\Application\AbstractApplication;
-use DgfipSI1\Application\Application;
 use DgfipSI1\Application\ApplicationSchema as CONF;
-use DgfipSI1\Application\Contracts\AppAwareInterface;
-use DgfipSI1\Application\Contracts\AppAwareTrait;
-use DgfipSI1\Application\Contracts\ConfigAwareInterface;
-use DgfipSI1\Application\Contracts\ConfigAwareTrait;
-use DgfipSI1\Application\Contracts\LoggerAwareInterface;
-use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
-use League\Container\ContainerAwareInterface;
-use League\Container\ContainerAwareTrait;
+use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -27,17 +18,9 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 /**
  * envent subscriber that loads all input options values into config
  */
-class ConfigLoader implements
-    EventSubscriberInterface,
-    ConfigAwareInterface,
-    LoggerAwareInterface,
-    AppAwareInterface,
-    ContainerAwareInterface
+class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInterface
 {
-    use ConfigAwareTrait;
-    use LoggerAwareTrait;
-    use AppAwareTrait;
-    use ContainerAwareTrait;
+    use ConfiguredApplicationTrait;
 
     /** @var string $configDir */
     protected $configDir;
@@ -121,19 +104,19 @@ class ConfigLoader implements
     {
         $configurators = [];
         if ($this->getContainer()->has(AbstractApplication::GLOBAL_CONFIG_TAG)) {
-            /** @var array<ApplicationAwareInterface> $globalConfigurators */
+            /** @var array<ConfiguredApplicationInterface> $globalConfigurators */
             $globalConfigurators = $this->getContainer()->get(AbstractApplication::GLOBAL_CONFIG_TAG);
             $configurators = array_merge($configurators, $globalConfigurators) ;
         }
         if ($this->getContainer()->has(AbstractApplication::COMMAND_CONFIG_TAG)) {
-            /** @var array<ApplicationAwareInterface> $commandConfigurators */
+            /** @var array<ConfiguredApplicationInterface> $commandConfigurators */
             $commandConfigurators = $this->getContainer()->get(AbstractApplication::COMMAND_CONFIG_TAG);
             $configurators = array_merge($configurators, $commandConfigurators) ;
         }
         foreach ($configurators as $configurator) {
             /** @var ConfigHelper $config */
             $config = $this->getConfig();
-            /** @var ApplicationAwareInterface $configurator */
+            /** @var ConfigurationInterface $configurator */
             $config->addSchema($configurator);
         }
     }

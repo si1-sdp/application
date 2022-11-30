@@ -9,6 +9,7 @@ use Consolidation\Config\Util\ConfigOverlay;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\BaseSchema;
+use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
@@ -54,6 +55,8 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     protected $intConfig;
     /** @var array<string,string> $namespaces */
     protected $namespaces;
+    /** @var array<string,array<MappedOption>> $mappedOptions */
+    protected $mappedOptions;
     /**
      * constructor
      *
@@ -81,6 +84,7 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $this->container = new Container();
         $this->classLoader = $classLoader;
         $this->namespaces = [];
+        $this->mappedOptions = [];
     }
     /**
      * sets the application name
@@ -144,6 +148,46 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
 
         return $ret;
     }
+    /**
+     * Adds a mapped option to application configuration
+     *
+     * @param MappedOption $opt
+     *
+     * @return void
+     */
+    public function addMappedOption($opt)
+    {
+        $logCtx = ['name' => 'addMappedOption', 'opt' => $opt->getName(), 'cmd' => $opt->getCommand() ?? 'global'];
+        $this->getLogger()->debug('Adding option {opt} for {cmd}', $logCtx);
+        if (null !== $opt->getCommand()) {
+            $key = $opt->getCommand();
+        } else {
+            $key = '__global__';
+        }
+        if (!array_key_exists($key, $this->mappedOptions)) {
+            $this->mappedOptions[$key] = [];
+        }
+        $this->mappedOptions[$key][] = $opt;
+    }
+    /**
+     * Get mapped option
+     *
+     * @param string|null $command
+     *
+     * @return array<MappedOption>
+     */
+    public function getMappedOptions($command = null)
+    {
+        if (null === $command) {
+            $command = '__global__';
+        }
+        if (array_key_exists($command, $this->mappedOptions)) {
+            return $this->mappedOptions[$command];
+        }
+
+        return [];
+    }
+
     /**
      * Verify that we have an application name and version
      *

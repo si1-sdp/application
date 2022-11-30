@@ -4,6 +4,7 @@ namespace hello_world\Commands;
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\Config\ApplicationAwareInterface;
 use DgfipSI1\Application\Config\MappedOption;
+use DgfipSI1\Application\Config\OptionType;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,20 +13,8 @@ use Symfony\Component\Console\Input\InputOption;
 
 
 #[AsCommand(name: 'info', description: 'Gets info about people' )]
-class InfoCommand extends Command implements ApplicationAwareInterface
+class InfoCommand extends Command
 {
-    /** 
-     * @inheritDoc 
-     */
-    public function getConfigTreeBuilder()
-    {
-        $treeBuilder = new TreeBuilder('commands/info/options');
-        $treeBuilder->getRootNode()
-            ->children()
-                ->booleanNode('list')->defaultFalse()->end()
-            ->end();
-        return $treeBuilder;    
-    }
     /**
      * @inheritDoc
      * @deprecated 
@@ -33,8 +22,7 @@ class InfoCommand extends Command implements ApplicationAwareInterface
     public function getConfigOptions()
     {
         $opts = [];
-        $opt = new InputOption('list',   null, InputOption::VALUE_NONE, 'list all people');
-        $opts[] = new MappedOption($opt);
+        $opts[] = new MappedOption('list', OptionType::Boolean, 'List all people');
         return $opts;
     }
 

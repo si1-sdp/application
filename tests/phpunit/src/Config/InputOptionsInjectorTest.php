@@ -10,11 +10,13 @@ use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
+use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\SymfonyApplication;
 use DgfipSI1\ApplicationTests\TestClasses\Commands\HelloWorldCommand;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
+use League\Container\Container;
 use Mockery;
 use Mockery\Mock;
 use ReflectionClass;
@@ -37,7 +39,6 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Config\OptionType
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
- * @uses DgfipSI1\Application\Contracts\AppAwareTrait
  * @uses DgfipSI1\Application\Config\InputOptionsInjector
  *
  *
@@ -177,7 +178,7 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector = $this->createInjector($argv, true);
 
         $command = new HelloWorldCommand();
-        $injector->getApplication()->getContainer()->addShared('hello', $command);
+        $injector->getContainer()->addShared('hello', $command);
         $opt = new InputOption('foo');
         $command->getDefinition()->addOption($opt);
         $prefix = 'commands.hello.options';
@@ -232,7 +233,7 @@ class InputOptionsInjectorTest extends LogTestCase
         // $method = $this->class->getMethod('manageGlobalOptions');
         // $method->setAccessible(true);
 
-        $options = $injector->getApplication()->getDefinition()->getOptions();
+        $options = $injector->getConfiguredApplication()->getDefinition()->getOptions();
         $caller = 'manageGlobalOptions';
         foreach ($options as $opt) {
             /** @phpstan-ignore-next-line */
@@ -316,22 +317,17 @@ class InputOptionsInjectorTest extends LogTestCase
         $method = $this->class->getMethod('syncInputWithConfig');
         $method->setAccessible(true);
 
-        // create an input option
-        $ios = new InputOptionsSetter();
-        $iosClass = new ReflectionClass(InputOptionsSetter::class);
-        $iosOpt = $iosClass->getMethod('optionFromConfig');
-        $iosOpt->setAccessible(true);
         $options = [
-            CONF::OPT_SHORT          => $short,
-            CONF::OPT_DESCRIPTION    => "Description for $type option '$name'",
-            CONF::OPT_TYPE           => $type,
+            MappedOption::OPT_SHORT          => $short,
+            MappedOption::OPT_DESCRIPTION    => "Description for $type option '$name'",
+            MappedOption::OPT_TYPE           => $type,
         ];
         if ('boolean' !== $type) {
-            $options[CONF::OPT_DEFAULT_VALUE] = $default;
+            $options[MappedOption::OPT_DEFAULT_VALUE] = $default;
         }
-        /** @var InputOption $inputOption */
-        $inputOption = $iosOpt->invokeArgs($ios, [ $name, $options]);
-        $injector->getApplication()->getDefinition()->addOption($inputOption);
+        /** @var MappedOption $option */
+        $option = MappedOption::createFromConfig($name, $options);
+        $injector->getConfiguredApplication()->getDefinition()->addOption($option->getOption());
 
         /** @var ConfigHelper $config */
         $config = $injector->getConfig();
@@ -380,10 +376,10 @@ class InputOptionsInjectorTest extends LogTestCase
         }
         foreach ($tests as $args) {
             $input = new ArgvInput($args);
-            $input->bind($injector->getApplication()->getDefinition());
+            $input->bind($injector->getConfiguredApplication()->getDefinition());
             // populate config
 
-            $method->invokeArgs($injector, [$input, $inputOption, $prefix, 'test']);
+            $method->invokeArgs($injector, [$input, $option->getOption(), $prefix, 'test']);
             $expect = null;
             if (null !== $optValue) {
                 $expect = $optValue;
@@ -477,9 +473,10 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector->setLogger($this->logger);
         $config = new ConfigHelper();
         $injector->setConfig($config);
+        $injector->setContainer(new Container());
         if (true === $createApp) {
             $app = new SymfonyApplication(new ClassLoader(), $argv);
-            $injector->setApplication($app);
+            $injector->getContainer()->addShared('application', $app);
         }
 
         return $injector;

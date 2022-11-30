@@ -4,7 +4,8 @@
  */
 namespace DgfipSI1\ApplicationTests\TestClasses\configSchemas;
 
-use DgfipSI1\Application\Config\ApplicationAwareInterface;
+use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
+use DgfipSI1\Application\Config\ConfiguredApplicationTrait;
 use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Config\OptionType;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -12,15 +13,16 @@ use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 /**
  * global application schema
  */
-class HelloWorldSchema implements ApplicationAwareInterface
+class HelloWorldSchema implements ConfiguredApplicationInterface
 {
+    use ConfiguredApplicationTrait;
     public const DUMPED_SHEMA =
     '    user:                 ~
     id:                   ~
 ';
 
     /**
-     * @inheritDoc
+     * @return TreeBuilder
      */
     public function getConfigTreeBuilder()
     {

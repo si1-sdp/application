@@ -4,13 +4,6 @@
  */
 namespace DgfipSI1\Application\Config;
 
-use DgfipSI1\Application\ApplicationInterface;
-use DgfipSI1\Application\Contracts\AppAwareInterface;
-use DgfipSI1\Application\Contracts\AppAwareTrait;
-use DgfipSI1\Application\Contracts\ConfigAwareInterface;
-use DgfipSI1\Application\Contracts\ConfigAwareTrait;
-use DgfipSI1\Application\Contracts\LoggerAwareInterface;
-use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -24,16 +17,9 @@ use function PHPUnit\Framework\isNan;
 /**
  * envent subscriber that loads all input options values into config
  */
-class InputOptionsInjector implements
-    EventSubscriberInterface,
-    ConfigAwareInterface,
-    LoggerAwareInterface,
-    AppAwareInterface
+class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplicationInterface
 {
-    use ConfigAwareTrait;
-    use LoggerAwareTrait;
-    use AppAwareTrait;
-
+    use ConfiguredApplicationTrait;
 
     /**
      * {@inheritdoc}
@@ -100,7 +86,7 @@ class InputOptionsInjector implements
         // don't manage builtin commands
         $commandName = (string) $command->getName();
         $logCtx = ['name' => 'manageCommand '.$commandName.'Options'];
-        if (!$this->application->getContainer()->has($commandName)) {
+        if (!$this->getContainer()->has($commandName)) {
             $this->getLogger()->debug("Skipping $commandName (not in container)", $logCtx);
 
             return;
@@ -112,8 +98,8 @@ class InputOptionsInjector implements
         $inputOptions = $definition->getOptions();
         $this->getLogger()->debug("Synchronizing config and inputOptions", $logCtx);
         $globalOptions = [];
-        if (null !== $this->application) {
-            $globalOptions = array_keys($this->application->getDefinition()->getOptions());
+        if (null !== $this->getConfiguredApplication()) {
+            $globalOptions = array_keys($this->getConfiguredApplication()->getDefinition()->getOptions());
         }
         foreach ($inputOptions as $option => $inputOption) {
             if (!in_array($option, $globalOptions)) {
@@ -131,13 +117,15 @@ class InputOptionsInjector implements
     protected function manageGlobalOptions($input)
     {
         $logCtx = ['name' => 'manageGlobalOptions'];
-        if (null === $this->application) {
+        try {
+            $this->getConfiguredApplication();
+        } catch (\Exception $e) {
             $this->getLogger()->debug("Skipping : no application", $logCtx);
 
             return;
         }
         $prefix = 'options';
-        $definition = $this->application->getDefinition();
+        $definition = $this->getConfiguredApplication()->getDefinition();
         $inputOptions = $definition->getOptions();
         $this->getLogger()->debug("Synchronizing config and inputOptions", $logCtx);
         foreach ($inputOptions as $inputOption) {
@@ -158,9 +146,6 @@ class InputOptionsInjector implements
     {
         $option = $inputOption->getName();
         $inputValue = $input->getOption($option);
-        if ($inputOption->isNegatable() && 1 === $inputValue) {
-            $inputValue = true;
-        }
         if ($inputOption->isArray() && [] === $inputValue) {
             $inputValue = null;
         }

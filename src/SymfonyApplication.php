@@ -5,14 +5,13 @@
 namespace DgfipSI1\Application;
 
 use DgfipSI1\Application\ApplicationSchema as CONF;
-use DgfipSI1\Application\Config\ApplicationAwareInterface;
-use DgfipSI1\Application\Contracts\ConfigAwareInterface;
-use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\Config\ConfigLoader;
+use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
-use DgfipSI1\Application\Contracts\AppAwareInterface;
+use DgfipSI1\Application\Contracts\ConfigAwareInterface;
+use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Exception\RuntimeException as ExceptionRuntimeException;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
@@ -100,7 +99,7 @@ class SymfonyApplication extends AbstractApplication
         $disc->addDiscoverer($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, idAttribute:'name');
 
         // Discover configurator classes
-        $appClass = ApplicationAwareInterface::class;
+        $appClass = ConfiguredApplicationInterface::class;
         $cmdClass = ApplicationCommand::class;
         $disc->addDiscoverer($namespace, self::COMMAND_CONFIG_TAG, [ $appClass, $cmdClass ], idAttribute:'name');
         $disc->addDiscoverer($namespace, self::GLOBAL_CONFIG_TAG, [ $appClass ], excludeDeps: [ $cmdClass ]);
@@ -162,7 +161,6 @@ class SymfonyApplication extends AbstractApplication
         $this->getContainer()->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
         $this->getContainer()->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
         $this->getContainer()->inflector(ContainerAwareInterface::class)->invokeMethod('setContainer', ['container']);
-        $this->getContainer()->inflector(AppAwareInterface::class)->invokeMethod('setApplication', ['application']);
 
         $logger = $this->getContainer()->get('logger');              /** @var LoggerInterface $logger */
         $this->logger = $logger;

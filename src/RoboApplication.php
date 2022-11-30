@@ -8,7 +8,6 @@ use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Config\InputOptionsSetter;
-use DgfipSI1\Application\Contracts\AppAwareInterface;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
 use Robo\Robo;
@@ -105,7 +104,6 @@ class RoboApplication extends AbstractApplication
         );
         $this->getContainer()->extend('logger')->setAlias('roboLogger');
         $verbosity = ApplicationLogger::getVerbosity($this->input);
-        $this->getContainer()->inflector(AppAwareInterface::class)->invokeMethod('setApplication', ['application']);
         $this->getContainer()->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
         $this->getContainer()->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
         $this->getContainer()->addShared('verbosity', new IntegerArgument($verbosity));

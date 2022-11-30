@@ -3,6 +3,7 @@ namespace hello_world\Commands;
 
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\Config\ApplicationAwareInterface;
+use DgfipSI1\Application\Config\ApplicationAwareTrait;
 use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Config\OptionType;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -12,30 +13,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 
 #[AsCommand(name: 'hello', description: 'A symfony command hello world example' )]
-class HelloWorldCommand extends Command implements ApplicationAwareInterface
+class HelloWorldCommand extends Command
 {
-    public const CONFIG_YELL   = 'hello.greeting.yell';
-    public const CONFIG_FORMAL = 'hello.greeting.formal';
-    /** 
-     * @inheritDoc 
-     */
-    public function getConfigTreeBuilder()
-    {
-        $treeBuilder = new TreeBuilder('commands/hello/options');
-        $treeBuilder->getRootNode()
-            ->children()
-                ->booleanNode('yell')->defaultFalse()->end()
-                ->scalarNode('formal')->defaultFalse()->end()
-            ->end();
-        return $treeBuilder;
-    }
     /**
      * @inheritDoc
      */
     public function getConfigOptions()
     {
         $opts = [];
-        $opts[] = new MappedOption('formal', OptionType::Boolean, 'Should I be more formal?');
+        $opts[] = new MappedOption('formal', OptionType::Boolean, 'Should I be more formal ?');
         return $opts;
     }
     // protected function configure(): void

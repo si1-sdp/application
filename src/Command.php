@@ -4,17 +4,14 @@
  */
 namespace DgfipSI1\Application;
 
-use DgfipSI1\Application\Contracts\ConfigAwareInterface;
-use DgfipSI1\Application\Contracts\ConfigAwareTrait;
-use DgfipSI1\Application\Contracts\LoggerAwareInterface;
-use DgfipSI1\Application\Contracts\LoggerAwareTrait;
+use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
+use DgfipSI1\Application\Config\ConfiguredApplicationTrait;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 /**
  * class Application
  */
-class Command extends SymfonyCommand implements ConfigAwareInterface, LoggerAwareInterface
+class Command extends SymfonyCommand implements ConfiguredApplicationInterface
 {
-    use LoggerAwareTrait;
-    use ConfigAwareTrait;
+    use ConfiguredApplicationTrait;
 }

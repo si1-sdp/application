@@ -7,13 +7,11 @@ namespace DgfipSI1\ApplicationTests\Config;
 
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\AbstractApplication;
-use DgfipSI1\Application\Application;
-use DgfipSI1\Application\Config\ConfigLoader;
-use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\Config\InputOptionsSetter;
-use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
+use DgfipSI1\Application\Config\MappedOption;
+use DgfipSI1\Application\Config\OptionType;
 use DgfipSI1\Application\RoboApplication;
 use DgfipSI1\Application\SymfonyApplication;
 use DgfipSI1\ApplicationTests\TestClasses\configSchemas\HelloWorldCommand;
@@ -22,17 +20,9 @@ use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use League\Container\Container;
-use League\Container\Definition\Definition;
 use ReflectionClass;
-use ReflectionProperty;
-use Symfony\Component\Console\Application as ConsoleApplication;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\ConsoleEvents;
-use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * @uses DgfipSI1\Application\AbstractApplication
@@ -46,9 +36,6 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Config\OptionType
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
- * @uses DgfipSI1\Application\Contracts\AppAwareTrait
- *
- *
  */
 class InputOptionsSetterTest extends LogTestCase
 {
@@ -86,7 +73,7 @@ class InputOptionsSetterTest extends LogTestCase
     {
         $setter = $this->createSetter();
         /** @var SymfonyApplication $app */
-        $app = $setter->getApplication();
+        $app = $setter->getConfiguredApplication();
         $appDef = $app->getDefinition();
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
@@ -125,7 +112,7 @@ class InputOptionsSetterTest extends LogTestCase
         $method = $this->class->getMethod('setupTechnicalOptions');
         $method->setAccessible(true);
         /** @var SymfonyApplication $app */
-        $app = $setter->getApplication();
+        $app = $setter->getConfiguredApplication();
         $def = $app->getDefinition();
 
         $input = new ArgvInput([ './test']);
@@ -141,12 +128,16 @@ class InputOptionsSetterTest extends LogTestCase
      * test setupGlobalOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupGlobalOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerAllOptions
      *
      * @return void
      */
     public function testSetupGlobalOptions()
     {
         $setter = $this->createSetter();
+        $register = $this->class->getMethod('registerAllOptions');
+        $register->setAccessible(true);
+
         $method = $this->class->getMethod('setupGlobalOptions');
         $method->setAccessible(true);
 
@@ -155,11 +146,11 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar'  ],
         ];
-        $method->invokeArgs($setter, [ $globalOptions]);
+        $register->invokeArgs($setter, [$globalOptions, []]);
+        $method->invokeArgs($setter, []);
         /** @var SymfonyApplication $app */
-        $app = $setter->getApplication();
+        $app = $setter->getConfiguredApplication();
         $def = $app->getDefinition();
-
         $this->assertTrue($def->hasOption('test-b'));
         $this->assertTrue($def->hasOption('test-s'));
         $this->assertTrue($def->hasOption('configAware'));  // from ApplicationAware
@@ -169,12 +160,15 @@ class InputOptionsSetterTest extends LogTestCase
      * test setupCommandOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupCommandOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerAllOptions
      *
      * @return void
      */
     public function testSetupCommandOptions()
     {
         $setter = $this->createSetter();
+        $register = $this->class->getMethod('registerAllOptions');
+        $register->setAccessible(true);
         $method = $this->class->getMethod('setupCommandOptions');
         $method->setAccessible(true);
 
@@ -184,7 +178,8 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar' ],
         ], ];
-        $method->invokeArgs($setter, [ $input, 'hello', $commandOptions]);
+        $register->invokeArgs($setter, [[], $commandOptions]);
+        $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
@@ -200,7 +195,8 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar' ],
         ], ];
-        $method->invokeArgs($setter, [ $input, 'help', $commandOptions]);
+        $register->invokeArgs($setter, [[], $commandOptions]);
+        $method->invokeArgs($setter, [ $input, 'help']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
@@ -212,7 +208,8 @@ class InputOptionsSetterTest extends LogTestCase
         // test with unknown command
         $setter = $this->createSetter();
         $input = new ArgvInput([ './test', 'hello' ]);
-        $method->invokeArgs($setter, [ $input, 'foo', $this->commandOptions]);
+        $register->invokeArgs($setter, [[], $this->commandOptions]);
+        $method->invokeArgs($setter, [ $input, 'foo']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
@@ -224,107 +221,18 @@ class InputOptionsSetterTest extends LogTestCase
         $commandOptions['hello'] = ['options' => [
             'test-b' => [ 'type' => 'boolean' ],
         ], ];
-        $method->invokeArgs($setter, [ $input, 'hello', $commandOptions]);
+        $register->invokeArgs($setter, [[], $commandOptions]);
+        $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
         $this->assertEquals(2, count($def->getOptions()));
 
         // see that we skip completely if not symfonyCommand
-        $setter->setApplication(new RoboApplication(new ClassLoader()));
+        $setter->getContainer()->extend('application')->setAlias('oldApp');
+        $setter->getContainer()->addShared('application', new RoboApplication(new ClassLoader()));
         $method->invokeArgs($setter, [ $input, 'hello', $commandOptions]);
         $this->assertInfoInLog('Only symfony command supported');
-    }
-    /**
-     * test optionFromConfig
-     *
-     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::optionFromConfig
-     *
-     * @return void
-     */
-    public function testOptionFromConfig()
-    {
-        $setter = $this->createSetter();
-        $method = $this->class->getMethod('optionFromConfig');
-        $method->setAccessible(true);
-
-        // test 1 : scalar option
-        $scalarOpt = [
-            CONF::OPT_SHORT         => 'T',
-            CONF::OPT_DESCRIPTION   => 'this is a testing option',
-            CONF::OPT_TYPE          => 'scalar',
-        ];
-        /** @var InputOption $option */
-        $option = $method->invokeArgs($setter, ['test-scalar-opt', $scalarOpt]);
-        $this->assertEquals('test-scalar-opt', $option->getName());
-        $this->assertEquals('T', $option->getShortcut());
-        $this->assertEquals('this is a testing option', $option->getDescription());
-        $this->assertEquals(null, $option->getDefault());
-        $this->assertTrue($option->isValueRequired());
-        $this->assertFalse($option->isArray());
-
-        // test 2 : array option
-        $arrayOpt = [
-            CONF::OPT_TYPE          => 'array',
-            CONF::OPT_DEFAULT_VALUE => [ 'foo' ],
-        ];
-        /** @var InputOption $option */
-        $option = $method->invokeArgs($setter, ['test-array-opt', $arrayOpt]);
-        $this->assertEquals('test-array-opt', $option->getName());
-        $this->assertEquals(null, $option->getShortcut());
-        $this->assertEquals(null, $option->getDescription());
-        $this->assertEquals(['foo'], $option->getDefault());
-        $this->assertTrue($option->isValueRequired());
-        $this->assertTrue($option->isArray());
-
-        // test 3 : boolean option
-        $arrayOpt = [
-            CONF::OPT_TYPE          => 'boolean',
-        ];
-        /** @var InputOption $option */
-        $option = $method->invokeArgs($setter, ['test-bool-opt', $arrayOpt]);
-        $this->assertEquals('test-bool-opt', $option->getName());
-        $this->assertEquals(null, $option->getShortcut());
-        $this->assertEquals(null, $option->getDescription());
-        $this->assertEquals(null, $option->getDefault());
-        $this->assertFalse($option->isValueRequired());
-        $this->assertFalse($option->isArray());
-
-        // test 4 : unknown type
-        $badOpt = [
-            CONF::OPT_TYPE          => 'foo',
-        ];
-        $msg = '';
-        try {
-            $option = $method->invokeArgs($setter, ['test-bad-opt', $badOpt]);
-        } catch (\Exception $e) {
-            $msg = $e->getMessage();
-        }
-        $this->assertEquals("Unknown option type 'foo' for option 'test-bad-opt'", $msg);
-
-        // test 5 : mismatch
-        $badOpt = [
-            CONF::OPT_TYPE          => 'array',
-            CONF::OPT_DEFAULT_VALUE => true,
-        ];
-        $msg = '';
-        try {
-            $option = $method->invokeArgs($setter, ['bad-opt', $badOpt]);
-        } catch (\Exception $e) {
-            $msg = $e->getMessage();
-        }
-        $error = "Error creating option bad-opt : A default value for an array option must be an array.";
-        $this->assertEquals($error, $msg);
-
-        // test 6 : no type at all
-        $badOpt = [];
-        $msg = '';
-        try {
-            $option = $method->invokeArgs($setter, ['test-bad-opt', $badOpt]);
-        } catch (\Exception $e) {
-            $msg = $e->getMessage();
-        }
-        $this->assertEquals("Missing option type for test-bad-opt", $msg);
     }
 
     /**
@@ -340,7 +248,8 @@ class InputOptionsSetterTest extends LogTestCase
         $method = $this->class->getMethod('addOption');
         $method->setAccessible(true);
         $def = new InputDefinition();
-        $option = new InputOption('test-opt');
+        // $option = new InputOption('test-opt');
+        $option = new MappedOption('test-opt', OptionType::Boolean);
         $ctx = ['context' => 'testing'];
         $method->invokeArgs($setter, [$def, $option, $ctx]);
         $this->assertDebugInLog('testing option test-opt added', interpolate:true);
@@ -362,13 +271,13 @@ class InputOptionsSetterTest extends LogTestCase
         $config = new ConfigHelper();
         $setter->setConfig($config);
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
-        $app = new SymfonyApplication($loaders[0], []);
 
-        $setter->setApplication($app);
+        $app = new SymfonyApplication($loaders[0], []);
         $setter->setContainer($app->getContainer());
+        $setter->getContainer()->addShared('application', $app);
 
         $def = $setter->getContainer()->addShared(HelloWorldCommand::class);
-        $def->addTag('hello')->addTag(AbstractApplication::COMMAND_TAG);
+        $def->addTag('hello')->addTag(SymfonyApplication::COMMAND_TAG);
 
         $def = $setter->getContainer()->addShared(HelloWorldSchema::class);
         $def->addTag(AbstractApplication::GLOBAL_CONFIG_TAG);

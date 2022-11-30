@@ -3,12 +3,18 @@ namespace hello_world\Commands;
 
 use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Config\ApplicationAwareInterface;
+use DgfipSI1\Application\Config\ApplicationAwareTrait;
+use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
+use DgfipSI1\Application\Config\ConfiguredApplicationTrait;
+use DgfipSI1\Application\Contracts\AppAwareInterface;
+use DgfipSI1\Application\Contracts\AppAwareTrait;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Console\Input\InputOption;
 
-class helloWorldSchema implements ApplicationAwareInterface
+class helloWorldSchema implements ConfiguredApplicationInterface
 {
+    use ConfiguredApplicationTrait;
     /** 
      * @inheritDoc 
      */
@@ -28,11 +34,7 @@ class helloWorldSchema implements ApplicationAwareInterface
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode('options')
-                    ->children()
-                        ->scalarNode('user')->end()
-                    ->end()
-                ->end()
+                ->append($this->schemaFromOptions()->getRootNode())
             ->end();
         return $treeBuilder;
     }

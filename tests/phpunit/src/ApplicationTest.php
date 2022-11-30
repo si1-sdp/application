@@ -11,6 +11,8 @@ use DgfipSI1\Application\AbstractApplication;
 use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\ApplicationSchema;
+use DgfipSI1\Application\Config\MappedOption;
+use DgfipSI1\Application\Config\OptionType;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\RuntimeException;
 use DgfipSI1\Application\RoboApplication;
@@ -38,6 +40,8 @@ use ReflectionClass;
  * @uses \DgfipSI1\Application\Config\BaseSchema
  * @uses \DgfipSI1\Application\Config\InputOptionsInjector
  * @uses \DgfipSI1\Application\Config\InputOptionsSetter
+ * @uses \DgfipSI1\Application\Config\MappedOption
+ * @uses \DgfipSI1\Application\Config\OptionType
  * @uses \DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses \DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses \DgfipSI1\Application\Utils\ClassDiscoverer
@@ -247,8 +251,7 @@ class ApplicationTest extends LogTestCase
 
 
         $found = $app->getCommand((string) $cmd->getName());
-        $this->assertTrue($found::class === HelloWorldCommand::class); /** @phpstan-ignore-line */
-
+        $this->assertTrue($found::class === HelloWorldCommand::class);
         $msg = '';
         try {
             $found = $app->getCommand('foo');
@@ -318,6 +321,30 @@ class ApplicationTest extends LogTestCase
         $setav->invoke($app);
         $this->assertEquals('conf-app', $app->getName());
         $this->assertEquals('conf-ver', $app->getVersion());
+    }
+    /**
+     *  test add/get MappedOptions
+     *
+     * @covers \DgfipSI1\Application\AbstractApplication::addMappedOption
+     * @covers \DgfipSI1\Application\AbstractApplication::getMappedOptions
+     *
+     */
+    public function testMappedOptions(): void
+    {
+        $app = new SymfonyApplication($this->loader);
+        $this->assertEquals([], $app->getMappedOptions());
+        $this->assertEquals([], $app->getMappedOptions('test_command'));
+        $app->addMappedOption((new MappedOption('test_scalar', OptionType::Scalar))->setCommand('test_command'));
+        $app->addMappedOption((new MappedOption('test_bool', OptionType::Boolean))->setCommand('test_command'));
+        $app->addMappedOption(new MappedOption('test_global', OptionType::Scalar));
+        $options = array_map(function (MappedOption $o) {
+            return $o->getName();
+        }, $app->getMappedOptions('test_command'));
+        $this->assertEquals(['test_scalar', 'test_bool'], $options);
+        $options = array_map(function (MappedOption $o) {
+            return $o->getName();
+        }, $app->getMappedOptions());
+        $this->assertEquals(['test_global'], $options);
     }
     /**
      *  test roboRun
