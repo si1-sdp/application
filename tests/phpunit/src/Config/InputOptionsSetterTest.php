@@ -36,6 +36,7 @@ use Symfony\Component\Console\Input\InputDefinition;
  * @uses DgfipSI1\Application\Config\OptionType
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
+ * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class InputOptionsSetterTest extends LogTestCase
 {

@@ -60,7 +60,7 @@ trait ConfiguredApplicationTrait
             } else {
                 $node = $children->booleanNode($opt->getName());
             }
-            $node->info($opt->getDescription());
+            $node->info($mappedOption->getDescription());
         }
 
         return $treeBuilder;

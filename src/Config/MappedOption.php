@@ -19,9 +19,14 @@ class MappedOption
 
     /** @var InputOption $inputOption */
     protected $inputOption;
-
     /** @var string $name */
     protected $name;
+    /** @var string $description */
+    protected $description;
+    /** @var mixed $defaultValue */
+    protected $defaultValue;
+    /** @var OptionType $type */
+    protected $type;
 
     /** @var string|null $commandName */
     protected $commandName;
@@ -37,10 +42,21 @@ class MappedOption
      */
     public function __construct($name, $type, $description = '', $optShort = null, $default = null)
     {
-        $this->name = $name;
+        $this->name         = $name;
+        $this->defaultValue = $default;
+        $this->type         = $type;
+        $this->description  = $description;
 
         $name = str_replace('_', '-', $name);
         $mode = $type->mode();
+        if (OptionType::Boolean === $type) {
+            if (true === $default) {
+                $description = $description." <comment>[default : true, use --no-$name to set to false]</comment>";
+            } else {
+                $description = $description." <comment>[default : false]</comment>";
+            }
+            $default = null;
+        }
         $this->inputOption = new InputOption($name, $optShort, $mode, $description, $default);
     }
 
@@ -95,6 +111,15 @@ class MappedOption
         return $this->name;
     }
     /**
+     * description getter
+     *
+     * @return string
+     */
+    public function getDescription()
+    {
+        return $this->description;
+    }
+    /**
      * command getter
      *
      * @return string|null
@@ -115,5 +140,35 @@ class MappedOption
         $this->commandName = $command;
 
         return $this;
+    }
+    /**
+     * default value getter
+     *
+     * @return mixed
+     */
+    public function getDefaultValue()
+    {
+        return $this->defaultValue;
+    }
+    /**  isBool
+     * @return bool
+    */
+    public function isBool(): bool
+    {
+        return (OptionType::Boolean === $this->type);
+    }
+    /**  isArray
+    * @return bool
+    */
+    public function isArray(): bool
+    {
+        return (OptionType::Array === $this->type);
+    }
+    /**  isScalar
+     * @return bool
+    */
+    public function isScalar(): bool
+    {
+        return (OptionType::Scalar === $this->type);
     }
 }

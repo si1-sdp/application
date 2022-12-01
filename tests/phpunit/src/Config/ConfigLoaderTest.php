@@ -39,6 +39,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Config\ConfigLoader
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
+ * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class ConfigLoaderTest extends LogTestCase
 {

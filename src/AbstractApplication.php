@@ -14,6 +14,7 @@ use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\RuntimeException;
+use DgfipSI1\Application\Utils\ClassDiscoverer;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use League\Container\Container;
 use League\Container\ContainerAwareTrait;
@@ -49,10 +50,10 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     protected $input;
     /** @var Output $output */
     protected $output;
-    /** @var ClassLoader $classLoader  */
-    protected $classLoader;
     /** @var ConfigHelper $intConfig Application internal configuration */
     protected $intConfig;
+    /** @var ClassLoader $classLoader */
+    protected $classLoader;
     /** @var array<string,string> $namespaces */
     protected $namespaces;
     /** @var array<string,array<MappedOption>> $mappedOptions */
@@ -81,8 +82,14 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
 
         $this->config    = new ConfigHelper(new BaseSchema());
         $this->config->setLogger($this->getLogger());
-        $this->container = new Container();
+
         $this->classLoader = $classLoader;
+
+        $this->container = new Container();
+        $disc = new ClassDiscoverer($classLoader);
+        $disc->setContainer($this->container);
+        $this->container->addShared('class_discoverer', $disc);
+
         $this->namespaces = [];
         $this->mappedOptions = [];
     }
@@ -167,7 +174,7 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         if (!array_key_exists($key, $this->mappedOptions)) {
             $this->mappedOptions[$key] = [];
         }
-        $this->mappedOptions[$key][] = $opt;
+        $this->mappedOptions[$key][$opt->getName()] = $opt;
     }
     /**
      * Get mapped option
@@ -187,7 +194,27 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
 
         return [];
     }
+    /**
+     * Discoverer classes
+     * Note :
+     * - dependencies work with logical AND : all dependencies have to be met
+     * - exclusions work with logical OR : anny exclusion filters class out.
 
+     * @param array<string>|string $namespaces
+     * @param string               $tag
+     * @param array<string>|string $deps
+     * @param array<string>|string $excludeDeps
+     * @param string|null          $idAttribute
+     * @param boolean              $emptyOk
+     *
+     * @return void
+     */
+    public function discoverClasses($namespaces, $tag, $deps, $excludeDeps = [], $idAttribute = null, $emptyOk = true)
+    {
+        /** @var ClassDiscoverer $disc */
+        $disc = $this->getContainer()->get('class_discoverer');
+        $disc->addDiscoverer($namespaces, $tag, $deps, $excludeDeps, $idAttribute, $emptyOk);
+    }
     /**
      * Verify that we have an application name and version
      *

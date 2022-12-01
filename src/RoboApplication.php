@@ -111,7 +111,5 @@ class RoboApplication extends AbstractApplication
         $this->getContainer()->addShared('logger', ApplicationLogger::class)
             ->addArguments(['internal_configuration', 'output', 'verbosity']);
         $this->getContainer()->addShared('input_options_setter', InputOptionsSetter::class);
-        $this->getContainer()->addShared('class_discoverer', ClassDiscoverer::class)
-            ->addArgument('classLoader');
     }
 }

@@ -26,6 +26,7 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  * @uses DgfipSI1\Application\Config\ConfiguredApplicationTrait
  * @uses DgfipSI1\Application\Config\MappedOption
  * @uses DgfipSI1\Application\Config\OptionType
+ * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class ConfiguredApplicationTraitTest extends LogTestCase
 {

@@ -8,13 +8,9 @@ use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\RuntimeException;
-use Hamcrest\Arrays\IsArray;
-use League\Container\Argument\ResolvableArgument;
 use League\Container\ContainerAwareInterface;
 use League\Container\ContainerAwareTrait;
-use League\Container\Definition\DefinitionInterface;
 use Robo\ClassDiscovery\RelativeNamespaceDiscovery;
-use Symfony\Component\Console\Exception\LogicException;
 
 /**
  * Mapped Option class

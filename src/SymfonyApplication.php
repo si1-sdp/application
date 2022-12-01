@@ -8,6 +8,7 @@ use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\Config\ConfigLoader;
 use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
+use DgfipSI1\Application\Config\DumpconfigCommand;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
@@ -44,6 +45,10 @@ class SymfonyApplication extends AbstractApplication
             $logCtx = ['name' => 'findCommand', 'cmd' => $command->getName()];
             $this->getLogger()->notice("command {cmd} registered", $logCtx);
         }
+        $this->getContainer()->addShared(DumpconfigCommand::class)->addTag(self::COMMAND_TAG)->addTag('dumpconfig');
+        /** @var Command $cmd */
+        $cmd = $this->getContainer()->get(DumpconfigCommand::class);
+        $this->add($cmd);
     }
     /**
      * Return command object from container
@@ -90,7 +95,7 @@ class SymfonyApplication extends AbstractApplication
         // set application's name and version
         $this->setApplicationNameAndVersion();
         /** @var string $namespace */
-        $namespace = $this->intConfig->get(CONF::APPLICATION_NAMESPACE);
+        $namespace = $this->getNamespace();
         // Create and configure container.
         $this->configureContainer();
 
@@ -148,7 +153,7 @@ class SymfonyApplication extends AbstractApplication
         $this->getContainer()->addShared('logger', ApplicationLogger::class)
             ->addArguments(['internal_configuration', 'output', 'verbosity']);
         $this->getContainer()->addShared('classLoader', $this->classLoader);
-        $this->getContainer()->addShared('class_discoverer', ClassDiscoverer::class)->addArgument('classLoader');
+        // $this->getContainer()->addShared('class_discoverer', ClassDiscoverer::class)->addArgument('classLoader');
         $this->getContainer()->addShared('input_options_setter', InputOptionsSetter::class);
         $this->getContainer()->addShared('input_options_injector', InputOptionsInjector::class);
         $this->getContainer()->addShared('configuration_loader', ConfigLoader::class)

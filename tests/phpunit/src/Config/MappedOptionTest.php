@@ -58,7 +58,7 @@ class MappedOptionTest extends LogTestCase
         $this->assertTrue($opt->getOption()->isValueRequired());
 
         $opt = new MappedOption('testb', OptionType::Boolean, 'bool test', 'B');
-        $this->assertEquals('bool test', $opt->getOption()->getDescription());
+        $this->assertEquals('bool test', $opt->getDescription());
         $this->assertEquals('B', $opt->getOption()->getShortcut());
         $this->assertEquals('testb', $opt->getOption()->getName());
         $this->assertEquals('testb', $opt->getName());
@@ -131,7 +131,7 @@ class MappedOptionTest extends LogTestCase
         $inputOption = $option->getOption();
         $this->assertEquals('test-bool-opt', $inputOption->getName());
         $this->assertEquals(null, $inputOption->getShortcut());
-        $this->assertEquals(null, $inputOption->getDescription());
+        $this->assertEquals(null, $option->getDescription());
         $this->assertEquals(null, $inputOption->getDefault());
         $this->assertFalse($inputOption->isValueRequired());
         $this->assertFalse($inputOption->isArray());

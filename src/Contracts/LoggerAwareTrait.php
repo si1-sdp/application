@@ -37,6 +37,12 @@ trait LoggerAwareTrait
         if ($this->logger instanceof LoggerInterface) {
             return $this->logger;
         }
+        if (method_exists($this, 'getContainer') && $this->getContainer()->has('logger')) {
+            /** @var LoggerInterface $logger */
+            $logger = $this->getContainer()->get('logger');
+
+            return $logger;
+        }
 
         throw new RuntimeException('No logger implementation has been set.');
     }

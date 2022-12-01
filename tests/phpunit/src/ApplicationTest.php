@@ -337,14 +337,16 @@ class ApplicationTest extends LogTestCase
         $app->addMappedOption((new MappedOption('test_scalar', OptionType::Scalar))->setCommand('test_command'));
         $app->addMappedOption((new MappedOption('test_bool', OptionType::Boolean))->setCommand('test_command'));
         $app->addMappedOption(new MappedOption('test_global', OptionType::Scalar));
-        $options = array_map(function (MappedOption $o) {
-            return $o->getName();
-        }, $app->getMappedOptions('test_command'));
-        $this->assertEquals(['test_scalar', 'test_bool'], $options);
-        $options = array_map(function (MappedOption $o) {
-            return $o->getName();
-        }, $app->getMappedOptions());
-        $this->assertEquals(['test_global'], $options);
+        $options = $app->getMappedOptions('test_command');
+        $this->assertArrayHasKey('test_scalar', $options);
+        $this->assertInstanceOf(MappedOption::class, $options['test_scalar']);
+        $this->assertArrayHasKey('test_bool', $options);
+        $this->assertInstanceOf(MappedOption::class, $options['test_bool']);
+        $this->assertEquals(2, count($options));
+        $options = $app->getMappedOptions();
+        $this->assertArrayHasKey('test_global', $options);
+        $this->assertInstanceOf(MappedOption::class, $options['test_global']);
+        $this->assertEquals(1, count($options));
     }
     /**
      *  test roboRun

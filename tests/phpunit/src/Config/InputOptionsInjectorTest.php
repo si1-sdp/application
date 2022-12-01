@@ -11,6 +11,7 @@ use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Config\MappedOption;
+use DgfipSI1\Application\Config\OptionType;
 use DgfipSI1\Application\SymfonyApplication;
 use DgfipSI1\ApplicationTests\TestClasses\Commands\HelloWorldCommand;
 use DgfipSI1\ConfigHelper\ConfigHelper;
@@ -40,7 +41,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses DgfipSI1\Application\Config\InputOptionsInjector
- *
+ * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  *
  */
 class InputOptionsInjectorTest extends LogTestCase
@@ -179,12 +180,14 @@ class InputOptionsInjectorTest extends LogTestCase
 
         $command = new HelloWorldCommand();
         $injector->getContainer()->addShared('hello', $command);
-        $opt = new InputOption('foo');
-        $command->getDefinition()->addOption($opt);
-        $prefix = 'commands.hello.options';
-        $caller = 'manageCommand hello options';
+
+        $opt = (new MappedOption('test-opt', OptionType::Boolean))->setCommand('hello');
+
+        $command->getDefinition()->addOption($opt->getOption());
+        $injector->getConfiguredApplication()->addMappedOption($opt);
+
         /** @phpstan-ignore-next-line */
-        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, $prefix, $caller);
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt->getOption(), $opt, 'hello');
 
         $injector->manageCommandOptions($input, $command);                          /** @phpstan-ignore-line */
         $this->assertDebugInLog('Synchronizing config and inputOptions');
@@ -233,13 +236,13 @@ class InputOptionsInjectorTest extends LogTestCase
         // $method = $this->class->getMethod('manageGlobalOptions');
         // $method->setAccessible(true);
 
-        $options = $injector->getConfiguredApplication()->getDefinition()->getOptions();
-        $caller = 'manageGlobalOptions';
-        foreach ($options as $opt) {
-            /** @phpstan-ignore-next-line */
-            $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'options', $caller);
-        }
-        $injector->manageGlobalOptions($input);                            /** @phpstan-ignore-line */
+        $opt = new MappedOption('test-opt', OptionType::Boolean);
+        $injector->getConfiguredApplication()->getDefinition()->addOption($opt->getOption());
+        $injector->getConfiguredApplication()->addMappedOption($opt);
+        /** @phpstan-ignore-next-line */
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt->getOption(), $opt);
+        /** @phpstan-ignore-next-line */
+         $injector->manageGlobalOptions($input);
         $this->assertDebugInLog('Synchronizing config and inputOptions');
     }
     /**
@@ -321,10 +324,8 @@ class InputOptionsInjectorTest extends LogTestCase
             MappedOption::OPT_SHORT          => $short,
             MappedOption::OPT_DESCRIPTION    => "Description for $type option '$name'",
             MappedOption::OPT_TYPE           => $type,
+            MappedOption::OPT_DEFAULT_VALUE  => $default,
         ];
-        if ('boolean' !== $type) {
-            $options[MappedOption::OPT_DEFAULT_VALUE] = $default;
-        }
         /** @var MappedOption $option */
         $option = MappedOption::createFromConfig($name, $options);
         $injector->getConfiguredApplication()->getDefinition()->addOption($option->getOption());
@@ -379,13 +380,13 @@ class InputOptionsInjectorTest extends LogTestCase
             $input->bind($injector->getConfiguredApplication()->getDefinition());
             // populate config
 
-            $method->invokeArgs($injector, [$input, $option->getOption(), $prefix, 'test']);
+            $method->invokeArgs($injector, [$input, $option->getOption(), $option]);
             $expect = null;
             if (null !== $optValue) {
                 $expect = $optValue;
             } elseif (null !== $confValue) {
                 $expect = $confValue;
-            } elseif (null !== $default && 'boolean' !== $type) {
+            } elseif (null !== $default) {
                 $expect = $default;
             }
             if (null === $expect && 'array' === $type) {
