@@ -125,15 +125,12 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
         /** @var class-string $class */
         foreach ($classes as $class) {
             $logContext['class'] = $class;
-            $serviceId = $class;
-            if (null !== $idAttribute) {
-                try {
-                    $serviceId = $this->getAttributeValue($class, $idAttribute);
-                } catch (\Exception $e) {
-                    $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
-                    $this->getLogger()->warning($msg, $logContext);
-                    continue;
-                }
+            try {
+                $serviceId = $this->getAttributeValue($class, $idAttribute);
+            } catch (\Exception $e) {
+                $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
+                $this->getLogger()->warning($msg, $logContext);
+                continue;
             }
             $logContext['id'] = $serviceId;
             if ($this->getContainer()->has((string) $class)) {
@@ -143,7 +140,7 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 $this->getLogger()->debug("Adding class {class} to container", $logContext);
                 $serviceDefinition = $this->getContainer()->addShared((string) $class);
             }
-            if ($serviceId !== $class) {
+            if (null !== $serviceId) {
                 if (!$serviceDefinition->hasTag((string) $serviceId)) {
                     $this->getLogger()->debug("Add tag {id} for class {class}", $logContext);
                     $serviceDefinition->addTag((string) $serviceId);
@@ -159,12 +156,15 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
      * get attribute value
      *
      * @param class-string $class
-     * @param string       $attributeName
+     * @param string|null  $attributeName
      *
-     * @return string
+     * @return string|null
      */
     protected function getAttributeValue($class, $attributeName)
     {
+        if (null === $attributeName) {
+            return null;
+        }
         try {
             $attributes = (new \ReflectionClass($class))->getAttributes();
             $value = null;

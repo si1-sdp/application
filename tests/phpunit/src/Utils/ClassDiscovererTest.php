@@ -346,6 +346,8 @@ class ClassDiscovererTest extends LogTestCase
         $method = $class->getMethod('getAttributeValue');
         $method->setAccessible(true);
 
+        $this->assertNull($method->invokeArgs($disc, [ TestBaseClass::class, null]));
+
         $name = $method->invokeArgs($disc, [ TestBaseClass::class, 'name' ]);
         $this->assertEquals('test', $name);
 
