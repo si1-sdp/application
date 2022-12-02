@@ -11,7 +11,7 @@ dgfip_si1:
             - 'config.yml'
     global_options:
         user:
-            type: scalar
+            type: argument
             description: user id 
     command_options:
         hello:

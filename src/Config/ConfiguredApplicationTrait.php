@@ -12,7 +12,6 @@ use DgfipSI1\Application\Exception\RuntimeException;
 use League\Container\ContainerAwareTrait;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
-use Symfony\Component\Console\Application;
 
 /**
  * ConfiguredApplicationTrait
@@ -35,9 +34,9 @@ trait ConfiguredApplicationTrait
         $treeBuilder = new TreeBuilder('');
         $name = '';
         if ($this instanceof Command) {
-            $name = $this->getName();
+            $name = str_replace(':', '_', (string) $this->getName());
             $treeBuilder = new TreeBuilder("commands/$name/options");
-            $options = $this->getConfiguredApplication()->getMappedOptions($name);
+            $options = $this->getConfiguredApplication()->getMappedOptions($this->getName());
         } elseif ($this instanceof ConfiguredApplicationInterface) {  /** @phpstan-ignore-line */
             $treeBuilder = new TreeBuilder("options");
             $options = $this->getConfiguredApplication()->getMappedOptions();
@@ -46,24 +45,55 @@ trait ConfiguredApplicationTrait
         $root = $treeBuilder->getRootNode();           /** @var ArrayNodeDefinition $root */
         $children = $root->children();
         foreach ($options as $mappedOption) {
-            $opt = $mappedOption->getOption();
-            if ($opt->isArray()) {
-                $node = $children->arrayNode($opt->getName());
-                if (!empty($opt->getDefault())) {
-                    $node->defaultValue($opt->getDefault());
+            $node = null;
+            if ($mappedOption->isArray()) {
+                $node = $children->arrayNode($mappedOption->getOption()->getName());
+                if (!empty($mappedOption->getOption()->getDefault())) {
+                    $node->defaultValue($mappedOption->getOption()->getDefault());
                 }
-            } elseif ($opt->isValueRequired()) {
-                $node = $children->scalarNode($opt->getName());
-                if (null !== $opt->getDefault()) {
-                    $node->defaultValue($opt->getDefault());
+            } elseif ($mappedOption->isScalar()) {
+                $node = $children->scalarNode($mappedOption->getOption()->getName());
+                if (null !== $mappedOption->getOption()->getDefault()) {
+                    $node->defaultValue($mappedOption->getOption()->getDefault());
                 }
-            } else {
-                $node = $children->booleanNode($opt->getName());
+            } elseif ($mappedOption->isBool()) {
+                $node = $children->booleanNode($mappedOption->getOption()->getName());
+                if (true === $mappedOption->getDefaultValue()) {
+                    $node->defaultTrue();
+                } else {
+                    $node->defaultFalse();
+                }
+            } elseif ($mappedOption->isArgument()) {
+                $node = $children->ScalarNode($mappedOption->getArgument()->getName());
+                if (null !== $mappedOption->getDefaultValue()) {
+                    $node->defaultValue($mappedOption->getDefaultValue());
+                }
             }
-            $node->info($mappedOption->getDescription());
+            if (null !== $node) {
+                $node->info($mappedOption->getDescription());
+            }
         }
 
         return $treeBuilder;
+    }
+    /**
+     * Gets the value of an option or argument
+     *
+     * @param string $arg
+     *
+     * @return mixed
+     */
+    public function getOptionValue($arg)
+    {
+        if ($this instanceof Command) {
+            $name = str_replace(':', '_', (string) $this->getName());
+            $key = "commands.$name.options.$arg";
+            if (null !== $this->getConfig()->get($key)) {
+                return $this->getConfig()->get($key);
+            }
+        }
+
+        return $this->getConfig()->get("options.$arg");
     }
     /**
      * @return TreeBuilder

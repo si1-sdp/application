@@ -143,11 +143,19 @@ class ApplicationSchema implements ConfigurationInterface
                         ->info('the option description displayed when showing the command help')->end()
                     ->variableNode('default')
                         ->info('the default value of the option (for those which allow to pass values)')->end()
-                    ->enumNode('type')->values(['array', 'boolean', 'scalar'])->defaultValue('scalar')
+                    ->enumNode('type')->values(['array', 'boolean', 'scalar', 'argument'])->defaultValue('scalar')
                         ->info("Type of option \n
     - array   : option accepts multiple values (e.g. --dir=/foo --dir=/bar)
     - scalar  : --iterations=5 or --name=John
     - boolean : --yell  ")->end()
+                    ->booleanNode('required')
+                        ->info("For arguments only - is argument required ?")->end()
+                ->end()
+                ->validate()
+                    ->ifTrue(function ($v) {
+                        return ( $v['type'] !== 'argument' && array_key_exists('required', $v) );
+                    })
+                    ->thenInvalid('Required option only valid for argument')
                 ->end()
             ->end();
 

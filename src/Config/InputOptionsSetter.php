@@ -9,6 +9,7 @@ use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\AbstractApplication;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\SymfonyApplication;
+use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -24,11 +25,10 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      * Setup necessary parameters from internal configuration
      *
      * @param ConfigInterface $config
-     * @param string          $commandName
      *
      * @return void
      */
-    public function setInputOptions($config, $commandName)
+    public function setInputOptions($config)
     {
         /** @var array<string,mixed> globalOptions*/
         $globalOptions  = $config->get('dgfip_si1.global_options');
@@ -37,11 +37,13 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
 
         /** @var InputInterface $input */
         $input = $this->getContainer()->get('input');
+        /** @var SymfonyApplication $app */
+        $app = $this->getConfiguredApplication();
 
         $this->registerAllOptions($globalOptions, $commandOptions);
         $this->setupTechnicalOptions($input);
         $this->setupGlobalOptions();
-        $this->setupCommandOptions($input, $commandName);
+        $this->setupCommandOptions($input, (string) $app->getCmdName());
     }
     /**
      * @param InputInterface  $input
@@ -110,7 +112,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      */
     protected function setupCommandOptions($input, $cmdName)
     {
-        $logCtx = [ 'name' => 'setupCommandOptions' , 'command' => $cmdName ];
+        $logCtx = [ 'name' => 'setupCommandOptions' , 'command' => $cmdName, 'context' => $cmdName ];
         $this->getLogger()->info("Setting up command options for {command}", $logCtx);
         $app = $this->getConfiguredApplication();
         if (!$app instanceof SymfonyApplication) {
@@ -130,7 +132,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         if (empty($cmdName) || !$this->getContainer()->has($cmdName)) {
             return;
         }
-        $this->getLogger()->notice("Adding input options for command '{command}'", $logCtx);
+        $this->getLogger()->info("Adding input options for command '{command}'", $logCtx);
         $command = $app->getCommand($cmdName);
         $definition = $command->getDefinition();
         foreach ($app->getMappedOptions($cmdName) as $option) {
@@ -138,7 +140,9 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         }
     }
     /**
-     * Registers all command options
+     * Registers all options :
+     * Scan application configuration and getConfigOptions() for global and command options
+     * Adds every mappedOption returned to application MappedOptions list
      *
      * @param array<string,mixed> $globalOptions
      * @param array<string,mixed> $commandOptions
@@ -151,14 +155,14 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         /** @var array<ApplicationCommand> $commands */
         $commands = $this->getContainer()->get(SymfonyApplication::COMMAND_TAG);
         foreach ($commands as $command) {
-            $cmdName = (string) $command->getName();
+            $cmdName = str_replace(':', '_', (string) $command->getName());
             if (null !== $commandOptions && array_key_exists($cmdName, $commandOptions)) {
                 /** @var array<string,array<string,array<string,mixed>>> $cmdTree */
-                $cmdTree = $commandOptions[$cmdName];
+                $cmdTree = $commandOptions[str_replace(':', '_', $cmdName)];
                 if (array_key_exists('options', $cmdTree)) {
                     foreach ($cmdTree['options'] as $key => $options) {
                         $opt = MappedOption::createFromConfig($key, $options);
-                        $opt->setCommand($cmdName);
+                        $opt->setCommand((string) $command->getName());
                         $this->getConfiguredApplication()->addMappedOption($opt);
                     }
                 }
@@ -166,7 +170,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
             /** @var \DgfipSI1\Application\Command $command */
             if ($command instanceof ConfiguredApplicationInterface) {
                 foreach ($command->getConfigOptions() as $opt) {
-                    $opt->setCommand($cmdName);
+                    $opt->setCommand((string) $command->getName());
                     $this->getConfiguredApplication()->addMappedOption($opt);
                 }
             }
@@ -198,13 +202,23 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      */
     private function addOption($definition, $mappedOption, $logCtx)
     {
-        $option = $mappedOption->getOption();
-        $logCtx['option'] = $option->getName();
-        if ($definition->hasOption($option->getName())) {
-            $this->getLogger()->warning("{context} option {option} already exists", $logCtx);
+        $logCtx['option'] = $mappedOption->getName();
+        if ($mappedOption->isArgument()) {
+            $input = $mappedOption->getArgument();
+            if ($definition->hasArgument($input->getName())) {
+                $this->getLogger()->warning("{context} argument {option} already exists", $logCtx);
+            } else {
+                $this->getLogger()->debug("{context} argument {option} added", $logCtx);
+                $definition->addArgument($input);
+            }
         } else {
-            $this->getLogger()->debug("{context} option {option} added", $logCtx);
-            $definition->addOption($option);
+            $input = $mappedOption->getOption();
+            if ($definition->hasOption($input->getName())) {
+                $this->getLogger()->warning("{context} option {option} already exists", $logCtx);
+            } else {
+                $this->getLogger()->debug("{context} option {option} added", $logCtx);
+                $definition->addOption($input);
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ use DgfipSI1\Application\Config\OptionType;
 use DgfipSI1\Application\SymfonyApplication;
 use DgfipSI1\ApplicationTests\TestClasses\Commands\HelloWorldCommand;
 use DgfipSI1\ApplicationTests\TestClasses\configSchemas\HelloWorldAutoSchema;
+use DgfipSI1\ApplicationTests\TestClasses\configSchemas\HelloWorldSchema;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use League\Container\Container;
@@ -20,12 +21,12 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 /**
  * @uses DgfipSI1\Application\AbstractApplication
- * @uses DgfipSI1\Application\ApplicationLogger
  * @uses DgfipSI1\Application\ApplicationSchema
  * @uses DgfipSI1\Application\Config\BaseSchema
  * @uses DgfipSI1\Application\Config\ConfiguredApplicationTrait
  * @uses DgfipSI1\Application\Config\MappedOption
  * @uses DgfipSI1\Application\Config\OptionType
+ * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class ConfiguredApplicationTraitTest extends LogTestCase
@@ -54,7 +55,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
             options:
 
                 # A boolean value here
-                bool:                 ~
+                bool:                 true
 
                 # An array there
                 array:                []
@@ -67,8 +68,8 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $app = new SymfonyApplication($loaders[0], []);
         $cmd->setContainer(new Container());
         $cmd->getContainer()->addShared('application', $app);
-        $app->addMappedOption((
-        new MappedOption('bool', OptionType::Boolean, 'A boolean value here'))->setCommand('hello'));
+        $bool = new MappedOption('bool', OptionType::Boolean, 'A boolean value here', 'B', true);
+        $app->addMappedOption($bool->setCommand('hello'));
         $app->addMappedOption((new MappedOption('array', OptionType::Array, 'An array there'))->setCommand('hello'));
         $app->addMappedOption((new MappedOption('scalar', OptionType::Scalar, 'And a scalar'))->setCommand('hello'));
 
@@ -90,13 +91,16 @@ class ConfiguredApplicationTraitTest extends LogTestCase
     options:
 
         # A boolean value here
-        bool:                 ~
+        bool:                 false
 
         # An array there
         array:                []
 
         # And a scalar
         scalar:               ~
+
+        # argument
+        argument:             foo
 ';
 
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
@@ -106,12 +110,37 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $app->addMappedOption(new MappedOption('bool', OptionType::Boolean, 'A boolean value here'));
         $app->addMappedOption(new MappedOption('array', OptionType::Array, 'An array there'));
         $app->addMappedOption(new MappedOption('scalar', OptionType::Scalar, 'And a scalar'));
+        $app->addMappedOption(new MappedOption('argument', OptionType::Argument, 'argument', default: 'foo'));
 
         $config = new ConfigHelper($cmd);
         $this->assertEquals($DUMP, $config->dumpSchema());
 
         $this->assertInstanceOf(TreeBuilder::class, $cmd->schemaFromOptions());
     }
+    /**
+     * @covers DgfipSI1\Application\Config\ConfiguredApplicationTrait::getOptionValue
+     *
+     * @return void
+     */
+    public function testGetOptionValue()
+    {
+        $cmd = new HelloWorldCommand();
+        $cmd->setConfig(new ConfigHelper());
+        $notCmd = new HelloWorldSchema();
+        $notCmd->setConfig($cmd->getConfig());
+
+        $this->assertNull($cmd->getOptionValue('foo'));
+        $this->assertNull($notCmd->getOptionValue('foo'));
+
+        $cmd->getConfig()->set('options.foo', 'bar from global');
+        $this->assertEquals('bar from global', $cmd->getOptionValue('foo'));
+
+        $cmd->getConfig()->set('commands.hello.options.foo', 'bar from hello');
+        $this->assertEquals('bar from hello', $cmd->getOptionValue('foo'));
+
+        $this->assertEquals('bar from global', $notCmd->getOptionValue('foo'));
+    }
+
     /**
      * @covers DgfipSI1\Application\Config\ConfiguredApplicationTrait::getConfigOptions
      *

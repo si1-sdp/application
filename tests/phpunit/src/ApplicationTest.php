@@ -17,12 +17,14 @@ use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\RuntimeException;
 use DgfipSI1\Application\RoboApplication;
 use DgfipSI1\Application\SymfonyApplication;
-use DgfipSI1\ApplicationTests\TestClasses\Commands\AppTestRoboFile;
+use DgfipSI1\Application\Utils\ClassDiscoverer;
 use DgfipSI1\ApplicationTests\TestClasses\Commands\HelloWorldCommand;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use League\Container\Container;
+use Mockery;
+use Mockery\Mock;
 use org\bovigo\vfs\vfsStream;
 use org\bovigo\vfs\vfsStreamDirectory;
 use ReflectionClass;
@@ -33,11 +35,11 @@ use ReflectionClass;
  *  - DgfipSI1\Application\ApplicationSchema
  *
  * @uses \DgfipSI1\Application\AbstractApplication
- * @uses \DgfipSI1\Application\SymfonyApplication
- * @uses \DgfipSI1\Application\RoboApplication
- * @uses \DgfipSI1\Application\ApplicationLogger
  * @uses \DgfipSI1\Application\ApplicationSchema
+ * @uses \DgfipSI1\Application\RoboApplication
+ * @uses \DgfipSI1\Application\SymfonyApplication
  * @uses \DgfipSI1\Application\Config\BaseSchema
+ * @uses \DgfipSI1\Application\Config\ConfigLoader
  * @uses \DgfipSI1\Application\Config\InputOptionsInjector
  * @uses \DgfipSI1\Application\Config\InputOptionsSetter
  * @uses \DgfipSI1\Application\Config\MappedOption
@@ -46,7 +48,7 @@ use ReflectionClass;
  * @uses \DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses \DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses \DgfipSI1\Application\Utils\DiscovererDefinition
- * @uses \DgfipSI1\Application\Config\ConfigLoader
+ * @uses \DgfipSI1\Application\Utils\ApplicationLogger
  */
 class ApplicationTest extends LogTestCase
 {
@@ -77,6 +79,7 @@ class ApplicationTest extends LogTestCase
         $this->logger = new TestLogger();
         $this->root = vfsStream::setup();
     }
+
     /**
      * initialize tested class for logger
      *
@@ -102,6 +105,7 @@ class ApplicationTest extends LogTestCase
     {
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
+        \Mockery::close();
     }
     /**
      *  test constructor
@@ -134,11 +138,12 @@ class ApplicationTest extends LogTestCase
         $config = $configProp->getValue($app);
         $this->assertInstanceOf('DgfipSI1\ConfigHelper\ConfigHelper', $config);
     }
+
     /**
      * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
      * @covers DgfipSI1\Application\ApplicationSchema
      */
-    public function testSetupApplicationConfig(): void
+    public function testSetupApplicationNormalConfig(): void
     {
         /* make setupApplicationConfig available */
         $ac = $this->class->getMethod('setupApplicationConfig');
@@ -187,6 +192,54 @@ class ApplicationTest extends LogTestCase
         $this->assertWarningInLog('Error loading configuration');
         $this->assertDebugInLog("No default configuration loaded");
     }
+    /**
+     * @return array<string,mixed>
+     */
+    public function dataBadConfig(): array
+    {
+        $baseContents  = "dgfip_si1:\n  application:\n    name: test_app\n  global_options:\n";
+        $badShort = $baseContents."    test_opt:\n      short_option: FOO\n";
+        $reqOpt   = $baseContents."    test_arg:\n      required: true\n";
+
+        $data['long_short_opt'] = [ $badShort , 'Short option should be a one letter string'];
+        $data['required_opt  '] = [ $reqOpt   , 'Required option only valid for argument'];
+
+        return $data;
+    }
+
+    /**
+     * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
+     * @covers DgfipSI1\Application\ApplicationSchema
+     *
+     * @param string $contents
+     * @param string $error
+     *
+     * @dataProvider dataBadConfig
+     */
+    public function testSetupApplicationBadConfig($contents, $error): void
+    {
+        /* make setupApplicationConfig available */
+        $ac = $this->class->getMethod('setupApplicationConfig');
+        $ac->setAccessible(true);
+        $ic = $this->class->getProperty('intConfig');
+        $ic->setAccessible(true);
+
+        /* setup a config  */
+        $_SERVER['PWD'] = $this->root->url();
+        $configFile = $this->root->url().DIRECTORY_SEPARATOR.".application-config.yml";
+
+        $app = new SymfonyApplication($this->loader, ['./test', 'hello', '-q']);
+        $this->logger = new TestLogger();
+        $app->setLogger($this->logger);
+        file_put_contents($configFile, $contents);
+        $ac->invokeArgs($app, []);
+        /** @var ConfigInterface $config */
+        $config = $ic->getValue($app);
+        $this->assertNull($config->get('dgfip_si1.runtime.config_file'));
+        $this->assertWarningInLog($error);
+        $this->assertDebugInLog("No default configuration loaded");
+    }
+
 
     /**
      *  test getters
@@ -239,17 +292,18 @@ class ApplicationTest extends LogTestCase
      *  test getters
      *
      * @covers \DgfipSI1\Application\SymfonyApplication::getCommand
+     * @covers \DgfipSI1\Application\SymfonyApplication::getCmdName
      *
      */
     public function testGetters(): void
     {
-        $app = new SymfonyApplication($this->loader);
+        $app = new SymfonyApplication($this->loader, ['./test', 'hello']);
         $cmd = new HelloWorldCommand();
         $app->add($cmd);
         $def = $app->getContainer()->addShared(HelloWorldCommand::class);
         $def->addTag("".$cmd->getName());
 
-
+        $this->assertEquals('hello', $app->getCmdName());
         $found = $app->getCommand((string) $cmd->getName());
         $this->assertTrue($found::class === HelloWorldCommand::class);
         $msg = '';
@@ -349,6 +403,24 @@ class ApplicationTest extends LogTestCase
         $this->assertEquals(1, count($options));
     }
     /**
+     * @covers \DgfipSI1\Application\AbstractApplication::discoverClasses
+     *
+     */
+    public function testDiscoverClasses(): void
+    {
+        $app = new SymfonyApplication($this->loader);
+        $app->getContainer()->extend('class_discoverer')->setAlias('old_disc');
+        /** @var Mock $discoverer */
+        $discoverer = Mockery::mock(ClassDiscoverer::class);
+        $discoverer->shouldAllowMockingProtectedMethods();
+        $discoverer->makePartial();
+        /** @phpstan-ignore-next-line */
+        $discoverer->shouldReceive('addDiscoverer')->once()->with('ns', 'tag', [], [], null, true);
+        $app->getContainer()->addShared('class_discoverer', $discoverer);
+
+        $app->discoverClasses('ns', 'tag', []);
+    }
+    /**
      *  test roboRun
      *
      * @covers \DgfipSI1\Application\RoboApplication::go
@@ -363,7 +435,7 @@ class ApplicationTest extends LogTestCase
         $m->shouldReceive('setContainer');
         $m->shouldReceive('run')->andReturn(0);  /** @phpstan-ignore-line  */
 
-        $app = new RoboApplication($this->loader, [ './test', 'hello:test']);
+        $app = new RoboApplication($this->loader, [ './test', 'hello:test', '-q']);
         // setup the logger
 
         // setup internal config
@@ -392,7 +464,6 @@ class ApplicationTest extends LogTestCase
     public function testSymfonyRun(): void
     {
         $this->expectOutputString('Hello world !!');
-
         $app = new SymfonyApplication($this->loader, [ './test', 'hello']);
         $this->initLogger($app);
         // setup internal config
@@ -407,8 +478,14 @@ class ApplicationTest extends LogTestCase
         $app->setVersion('1.00');
 
         $rc = $app->go();
-        // test that event dispatcher has been called
         $this->assertEquals('set via event', $app->getConfig()->get("options.test_event"));
+        $this->assertAlertInLog('Advanced logger configuration applies only to Monolog');
+        $this->assertInfoInLog('classe(s) found');
+        $this->assertInfoInLog('command hello registered', true);
+        $this->assertInfoInLog('Setting up command options for hello', true);
+        $this->assertInfoInLog('Adding input options for command \'hello\'', true);
+        $this->assertInfoInLog('Launching symfony command \'hello\'', true);
+        $this->logReset();
         $this->assertEquals(0, $rc);
     }
 }

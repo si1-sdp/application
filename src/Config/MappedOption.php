@@ -4,7 +4,9 @@
  */
 namespace DgfipSI1\Application\Config;
 
-use Symfony\Component\Console\Input\InputOption as symfonyOption;
+use Consolidation\AnnotatedCommand\Attributes\Option;
+use DgfipSI1\Application\Exception\RuntimeException;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
 /**
@@ -16,9 +18,10 @@ class MappedOption
     public const OPT_DESCRIPTION         = 'description';
     public const OPT_DEFAULT_VALUE       = 'default';
     public const OPT_TYPE                = 'type';
+    public const OPT_REQUIRED            = 'required';
 
-    /** @var InputOption $inputOption */
-    protected $inputOption;
+    /** @var InputOption|InputArgument $input */
+    protected $input;
     /** @var string $name */
     protected $name;
     /** @var string $description */
@@ -27,6 +30,8 @@ class MappedOption
     protected $defaultValue;
     /** @var OptionType $type */
     protected $type;
+    /** @var bool $required */
+    protected $required;
 
     /** @var string|null $commandName */
     protected $commandName;
@@ -37,27 +42,40 @@ class MappedOption
      * @param string                                  $description
      * @param string|null                             $optShort
      * @param array<mixed>|bool|float|int|string|null $default
+     * @param bool                                    $required
      *
      * @return void;
      */
-    public function __construct($name, $type, $description = '', $optShort = null, $default = null)
+    public function __construct($name, $type, $description = '', $optShort = null, $default = null, $required = false)
     {
         $this->name         = $name;
-        $this->defaultValue = $default;
         $this->type         = $type;
         $this->description  = $description;
-
-        $name = str_replace('_', '-', $name);
-        $mode = $type->mode();
-        if (OptionType::Boolean === $type) {
-            if (true === $default) {
-                $description = $description." <comment>[default : true, use --no-$name to set to false]</comment>";
-            } else {
-                $description = $description." <comment>[default : false]</comment>";
+        $this->required     = $required;
+        if (null === $default) {
+            if (OptionType::Boolean === $type) {
+                $default = false;
+            } elseif (OptionType::Array === $type) {
+                $default = [];
             }
-            $default = null;
         }
-        $this->inputOption = new InputOption($name, $optShort, $mode, $description, $default);
+        $this->defaultValue = $default;
+        $name = str_replace('_', '-', $name);
+        $mode = $type->mode($required);
+        if (OptionType::Argument !== $type) {
+            if (OptionType::Boolean === $type) {
+                if (true === $default) {
+                    $description = $description." <comment>[default : true, use --no-$name to set to false]</comment>";
+                } else {
+                    $description = $description." <comment>[default : false]</comment>";
+                }
+                $default = null;
+            }
+            $this->input = new InputOption($name, $optShort, $mode, $description, $default);
+        } else {
+//            print "MODE FOR ".$this->name." = $mode\n";
+            $this->input = new InputArgument($name, $mode, $description, $default);
+        }
     }
 
     /**
@@ -75,6 +93,8 @@ class MappedOption
         $optDesc    = array_key_exists(self::OPT_DESCRIPTION, $options) ? $options[self::OPT_DESCRIPTION] : '';
         /** @var array<mixed>|bool|float|int|string|null $optDefault */
         $optDefault = array_key_exists(self::OPT_DEFAULT_VALUE, $options) ? $options[self::OPT_DEFAULT_VALUE] : null;
+        /** @var bool $required */
+        $required    = array_key_exists(self::OPT_REQUIRED, $options) ? $options[self::OPT_REQUIRED] : false;
         if (!array_key_exists(self::OPT_TYPE, $options)) {
             throw new \Exception(sprintf('Missing option type for %s', $name));
         }
@@ -82,7 +102,7 @@ class MappedOption
         $optType = $options[self::OPT_TYPE];
         try {
             $type = OptionType::from($optType);
-            $option = new MappedOption($name, $type, $optDesc, $shortOpt, $optDefault);
+            $option = new MappedOption($name, $type, $optDesc, $shortOpt, $optDefault, $required);
         } catch (\ValueError $e) {
             throw new \Exception(sprintf("Unknown option type '%s' for option '%s'", $optType, $name));
         } catch (\Exception $e) {
@@ -95,11 +115,28 @@ class MappedOption
     /**
      * inputOption getter
      *
-     * @return symfonyOption
+     * @return InputOption
      */
     public function getOption()
     {
-        return $this->inputOption;
+        if (!$this->input instanceof InputOption) {
+            throw new RuntimeException("Cannot getOption() on InputArgument");
+        }
+
+        return $this->input;
+    }
+    /**
+     * inputArgument getter
+     *
+     * @return InputArgument
+     */
+    public function getArgument()
+    {
+        if (!$this->input instanceof InputArgument) {
+            throw new RuntimeException("Cannot getArgument() on InputOption");
+        }
+
+        return $this->input;
     }
     /**
      * name getter
@@ -170,5 +207,12 @@ class MappedOption
     public function isScalar(): bool
     {
         return (OptionType::Scalar === $this->type);
+    }
+    /**  isArgument
+     * @return bool
+    */
+    public function isArgument(): bool
+    {
+        return (OptionType::Argument === $this->type);
     }
 }

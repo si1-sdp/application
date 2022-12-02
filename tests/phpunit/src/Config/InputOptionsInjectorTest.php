@@ -31,7 +31,6 @@ use Symfony\Component\Console\Output\NullOutput;
 /**
  * @uses DgfipSI1\Application\AbstractApplication
  * @uses DgfipSI1\Application\SymfonyApplication
- * @uses DgfipSI1\Application\ApplicationLogger
  * @uses DgfipSI1\Application\ApplicationSchema
  * @uses DgfipSI1\Application\Config\BaseSchema
  * @uses DgfipSI1\Application\Config\ConfigLoader
@@ -42,6 +41,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses DgfipSI1\Application\Config\InputOptionsInjector
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
+ * @uses DgfipSI1\Application\Utils\ApplicationLogger
  *
  */
 class InputOptionsInjectorTest extends LogTestCase
@@ -187,7 +187,7 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector->getConfiguredApplication()->addMappedOption($opt);
 
         /** @phpstan-ignore-next-line */
-        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt->getOption(), $opt, 'hello');
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'hello');
 
         $injector->manageCommandOptions($input, $command);                          /** @phpstan-ignore-line */
         $this->assertDebugInLog('Synchronizing config and inputOptions');
@@ -240,9 +240,9 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector->getConfiguredApplication()->getDefinition()->addOption($opt->getOption());
         $injector->getConfiguredApplication()->addMappedOption($opt);
         /** @phpstan-ignore-next-line */
-        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt->getOption(), $opt);
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt);
         /** @phpstan-ignore-next-line */
-         $injector->manageGlobalOptions($input);
+        $injector->manageGlobalOptions($input);
         $this->assertDebugInLog('Synchronizing config and inputOptions');
     }
     /**
@@ -273,12 +273,13 @@ class InputOptionsInjectorTest extends LogTestCase
     public function dataSyncInput(): array
     {
         $variables = [
-            'true   ' => [ 'type' => 'boolean', 'short' => 'B', 'value' => true          ],
-            'false  ' => [ 'type' => 'boolean', 'short' => 'B', 'value' => false         ],
-            'integer' => [ 'type' => 'scalar' , 'short' => 's', 'value' => '99'          ],
-            'string ' => [ 'type' => 'scalar' , 'short' => 's', 'value' => 'foobar'      ],
-            'array12' => [ 'type' => 'array'  , 'short' => 'A', 'value' => ['one', 'two']],
-            'array1 ' => [ 'type' => 'array'  , 'short' => 'A', 'value' => ['one']       ],
+            'g-true   ' => [ 'type' => 'boolean' , 'short' => 'B' , 'value' => true          ],
+            'c-false  ' => [ 'type' => 'boolean' , 'short' => 'B' , 'value' => false         ],
+            'g-integer' => [ 'type' => 'scalar'  , 'short' => 's' , 'value' => '99'          ],
+            'c-string ' => [ 'type' => 'scalar'  , 'short' => 's' , 'value' => 'foobar'      ],
+            'g-array12' => [ 'type' => 'array'   , 'short' => 'A' , 'value' => ['one', 'two']],
+            'c-array1 ' => [ 'type' => 'array'   , 'short' => 'A' , 'value' => ['one']       ],
+            'g-arg    ' => [ 'type' => 'argument', 'short' => null, 'value' => 'foo'         ],
         ];
         $data = [];
         foreach ($variables as $name => $item) {
@@ -287,7 +288,7 @@ class InputOptionsInjectorTest extends LogTestCase
                     foreach ([$item['value'], null] as $opt) {
                         $test = "$name:".(null !== $default ? 'D' : '-').':'.
                             (null !== $conf ? 'C' : '-').':'.(null !== $opt ? 'O' : '-');
-                        $data[$test] = [ $item['type'], $name, $item['short'], $default, $conf, $opt ];
+                        $data[$test] = [ $item['type'], trim($name), $item['short'], $default, $conf, $opt ];
                     }
                 }
             }
@@ -299,12 +300,12 @@ class InputOptionsInjectorTest extends LogTestCase
     /**
      * test syncInputWithConfig
      *
-     * @param string $type
-     * @param string $name
-     * @param string $short
-     * @param mixed  $default
-     * @param mixed  $confValue
-     * @param mixed  $optValue
+     * @param string      $type
+     * @param string      $name
+     * @param string|null $short
+     * @param mixed       $default
+     * @param mixed       $confValue
+     * @param mixed       $optValue
      *
      * @return void
      *
@@ -314,11 +315,18 @@ class InputOptionsInjectorTest extends LogTestCase
      */
     public function testSyncInputWithConfig($type, $name, $short, $default, $confValue, $optValue)
     {
-        $prefix = 'options';
         // create injector
         $injector = $this->createInjector();
         $method = $this->class->getMethod('syncInputWithConfig');
         $method->setAccessible(true);
+
+        $definition = $injector->getConfiguredApplication()->getDefinition();
+
+        if ('g' === substr($name, 0, 1)) {
+            $prefix = 'options';
+        } else {
+            $prefix = 'commands.hello.options';
+        }
 
         $options = [
             MappedOption::OPT_SHORT          => $short,
@@ -328,8 +336,11 @@ class InputOptionsInjectorTest extends LogTestCase
         ];
         /** @var MappedOption $option */
         $option = MappedOption::createFromConfig($name, $options);
-        $injector->getConfiguredApplication()->getDefinition()->addOption($option->getOption());
-
+        if ('argument' === $type) {
+            $definition->addArgument($option->getArgument());
+        } else {
+            $definition->addOption($option->getOption());
+        }
         /** @var ConfigHelper $config */
         $config = $injector->getConfig();
         $key = $prefix.'.'.str_replace(['.', '-' ], '_', $name);
@@ -341,6 +352,9 @@ class InputOptionsInjectorTest extends LogTestCase
                 $args = [];
                 if ('short' === $optType) {
                     if ('boolean' === $type && false === $optValue) {
+                        continue;
+                    }
+                    if (null === $short) {
                         continue;
                     }
                     $optName = "-$short";
@@ -360,6 +374,10 @@ class InputOptionsInjectorTest extends LogTestCase
                             /** @var string $optValue */
                             $args = [ "$optName", "$optValue" ];
                             break;
+                        case 'argument':
+                            /** @var string $optValue */
+                            $args = [ "$optValue" ];
+                            break;
                         case 'array':
                             /** @var array<string> $optValue */
                             foreach ($optValue as $value) {
@@ -377,10 +395,15 @@ class InputOptionsInjectorTest extends LogTestCase
         }
         foreach ($tests as $args) {
             $input = new ArgvInput($args);
-            $input->bind($injector->getConfiguredApplication()->getDefinition());
+            $input->bind($definition);
+            if ('g' === substr($name, 0, 1)) {
+                $method->invokeArgs($injector, [$input, $option]);
+            } else {
+                $method->invokeArgs($injector, [$input, $option, 'hello']);
+            }
+
             // populate config
 
-            $method->invokeArgs($injector, [$input, $option->getOption(), $option]);
             $expect = null;
             if (null !== $optValue) {
                 $expect = $optValue;
@@ -393,7 +416,11 @@ class InputOptionsInjectorTest extends LogTestCase
                 $expect = [];
             }
             $this->assertEquals($expect, $config->get($key));
-            $this->assertEquals($expect, $input->getOption($name));
+            if ('argument' === $type) {
+                $this->assertEquals($expect, $input->getArgument($name));
+            } else {
+                $this->assertEquals($expect, $input->getOption($name));
+            }
         }
     }
     /**

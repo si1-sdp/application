@@ -27,45 +27,100 @@ class MappedOptionTest extends LogTestCase
      * test setInputOptions
      *
      * @covers \DgfipSI1\Application\Config\MappedOption::__construct
-     * @covers \DgfipSI1\Application\Config\MappedOption::getOption
      * @covers \DgfipSI1\Application\Config\MappedOption::getName
+     * @covers \DgfipSI1\Application\Config\MappedOption::getDefaultValue
+     * @covers \DgfipSI1\Application\Config\MappedOption::getDescription
+     * @covers \DgfipSI1\Application\Config\MappedOption::isArray
+     * @covers \DgfipSI1\Application\Config\MappedOption::isBool
+     * @covers \DgfipSI1\Application\Config\MappedOption::isScalar
+     * @covers \DgfipSI1\Application\Config\MappedOption::isArgument
      * @covers \DgfipSI1\Application\Config\OptionType::mode
      *
      * @return void
      */
-    public function testMappedOption()
+    public function testConstructor()
     {
-        $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A', []);
+        $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A');
         $this->assertEquals('this is a test option', $opt->getOption()->getDescription());
+        $this->assertEquals('this is a test option', $opt->getDescription());
         $this->assertEquals('A', $opt->getOption()->getShortcut());
         $this->assertEquals([], $opt->getOption()->getDefault());
+        $this->assertEquals([], $opt->getDefaultValue());
         $this->assertEquals('test', $opt->getOption()->getName());
         $this->assertEquals('test', $opt->getName());
         $this->assertTrue($opt->getOption()->isArray());
         $this->assertFalse($opt->getOption()->isNegatable());
         $this->assertFalse($opt->getOption()->isValueOptional());
         $this->assertTrue($opt->getOption()->isValueRequired());
+        $this->assertTrue($opt->isArray());
 
         $opt = new MappedOption('test', OptionType::Scalar);
         $this->assertEquals('', $opt->getOption()->getDescription());
+        $this->assertEquals('', $opt->getDescription());
         $this->assertEquals(null, $opt->getOption()->getShortcut());
         $this->assertEquals(null, $opt->getOption()->getDefault());
+        $this->assertEquals(null, $opt->getDefaultValue());
         $this->assertEquals('test', $opt->getOption()->getName());
         $this->assertEquals('test', $opt->getName());
         $this->assertFalse($opt->getOption()->isArray());
         $this->assertFalse($opt->getOption()->isNegatable());
         $this->assertFalse($opt->getOption()->isValueOptional());
         $this->assertTrue($opt->getOption()->isValueRequired());
+        $this->assertTrue($opt->isScalar());
 
         $opt = new MappedOption('testb', OptionType::Boolean, 'bool test', 'B');
         $this->assertEquals('bool test', $opt->getDescription());
         $this->assertEquals('B', $opt->getOption()->getShortcut());
         $this->assertEquals('testb', $opt->getOption()->getName());
         $this->assertEquals('testb', $opt->getName());
+        $this->assertEquals(null, $opt->getDefaultValue());
         $this->assertFalse($opt->getOption()->isArray());
         $this->assertTrue($opt->getOption()->isNegatable());
         $this->assertFalse($opt->getOption()->isValueOptional());
         $this->assertFalse($opt->getOption()->isValueRequired());
+        $this->assertTrue($opt->isBool());
+
+        $opt = new MappedOption('testb', OptionType::Boolean, 'bool test', 'B', true);
+        $this->assertEquals('bool test', $opt->getDescription());
+        $this->assertEquals('B', $opt->getOption()->getShortcut());
+        $this->assertEquals('testb', $opt->getOption()->getName());
+        $this->assertEquals('testb', $opt->getName());
+        $this->assertEquals(true, $opt->getDefaultValue());
+
+        $opt = new MappedOption('test-arg', OptionType::Argument, 'arg test', required: true);
+        $this->assertEquals('arg test', $opt->getDescription());
+        $this->assertEquals('test-arg', $opt->getArgument()->getName());
+        $this->assertEquals('test-arg', $opt->getName());
+        $this->assertTrue($opt->isArgument());
+    }
+    /**
+     * test getArgument/getOption
+     *
+     * @covers \DgfipSI1\Application\Config\MappedOption::getOption
+     * @covers \DgfipSI1\Application\Config\MappedOption::getArgument
+     *
+     * @return void
+     */
+    public function testGetInputElement()
+    {
+        $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A');
+        $this->assertEquals('this is a test option', $opt->getOption()->getDescription());
+        $msg = '';
+        try {
+            $opt->getArgument();
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+        }
+        $this->assertEquals('Cannot getArgument() on InputOption', $msg);
+        $opt = new MappedOption('test', OptionType::Argument, 'this is a test argument');
+        $this->assertEquals('this is a test argument', $opt->getArgument()->getDescription());
+        $msg = '';
+        try {
+            $opt->getOption();
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+        }
+        $this->assertEquals('Cannot getOption() on InputArgument', $msg);
     }
     /**
      * test setInputOptions

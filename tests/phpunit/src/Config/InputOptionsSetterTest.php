@@ -27,7 +27,6 @@ use Symfony\Component\Console\Input\InputDefinition;
 /**
  * @uses DgfipSI1\Application\AbstractApplication
  * @uses DgfipSI1\Application\SymfonyApplication
- * @uses DgfipSI1\Application\ApplicationLogger
  * @uses DgfipSI1\Application\ApplicationSchema
  * @uses DgfipSI1\Application\Config\BaseSchema
  * @uses DgfipSI1\Application\Config\ConfigLoader
@@ -36,6 +35,7 @@ use Symfony\Component\Console\Input\InputDefinition;
  * @uses DgfipSI1\Application\Config\OptionType
  * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
+ * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  */
 class InputOptionsSetterTest extends LogTestCase
@@ -93,7 +93,7 @@ class InputOptionsSetterTest extends LogTestCase
         $config->addArray('global', [ 'dgfip_si1' => [ 'global_options'  => $this->globalOptions  ]]);
         $config->addArray('command', [ 'dgfip_si1' => [ 'command_options' => $this->commandOptions ]]);
 
-        $setter->setInputOptions($config, 'hello');
+        $setter->setInputOptions($config);
         $this->assertTrue($appDef->hasOption('config'));      // tech opt
         $this->assertTrue($appDef->hasOption('configAware')); // glob opt from getConfigOptions
         $this->assertTrue($appDef->hasOption('test-b'));      // glob opt from config
@@ -258,6 +258,15 @@ class InputOptionsSetterTest extends LogTestCase
         $method->invokeArgs($setter, [$def, $option, $ctx]);
         $this->assertWarningInLog('testing option test-opt already exists', interpolate:true);
         $this->assertLogEmpty();
+        // $option = new InputArgument('test-arg');
+        $option = new MappedOption('test-arg', OptionType::Argument);
+        $ctx = ['context' => 'testing'];
+        $method->invokeArgs($setter, [$def, $option, $ctx]);
+        $this->assertDebugInLog('testing argument test-arg added', interpolate:true);
+        $this->assertLogEmpty();
+        $method->invokeArgs($setter, [$def, $option, $ctx]);
+        $this->assertWarningInLog('testing argument test-arg already exists', interpolate:true);
+        $this->assertLogEmpty();
     }
     /**
      * creates a fully equiped inputSetter
@@ -272,10 +281,12 @@ class InputOptionsSetterTest extends LogTestCase
         $config = new ConfigHelper();
         $setter->setConfig($config);
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
+        $app = new SymfonyApplication($loaders[0], ['./test', 'hello']);
 
-        $app = new SymfonyApplication($loaders[0], []);
         $setter->setContainer($app->getContainer());
         $setter->getContainer()->addShared('application', $app);
+        $input = new ArgvInput(['./test', 'hello']);
+        $setter->getContainer()->addShared('input', $input);
 
         $def = $setter->getContainer()->addShared(HelloWorldCommand::class);
         $def->addTag('hello')->addTag(SymfonyApplication::COMMAND_TAG);
