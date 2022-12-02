@@ -113,20 +113,26 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
     /**
      * Add classes to container, tag according to definition
      *
-     * @param array<class-string> $filtered
+     * @param array<class-string> $classes
      * @param string              $tag
      * @param string|null         $idAttribute
      *
      * @return void
      */
-    protected function registerClasses($filtered, $tag, $idAttribute = null)
+    protected function registerClasses($classes, $tag, $idAttribute = null)
     {
         $logContext = ['name'  => 'registerClasses', 'tag' => $tag];
         /** @var class-string $class */
-        foreach ($filtered as $class) {
+        foreach ($classes as $class) {
             $logContext['class'] = $class;
             $serviceId = $class;
             if (null !== $idAttribute) {
+                try {
+                    $this->getAttributeValue($class, $idAttribute);
+                } catch (\Exception $e) {
+                    $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
+                    $this->getLogger()->warning($msg, $logContext);
+                }
                 $attributes = (new \ReflectionClass($class))->getAttributes();
                 $serviceId = null;
                 foreach ($attributes as $attribute) {
@@ -162,6 +168,38 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
             }
         }
     }
+    /**
+     * get attribute value
+     *
+     * @param class-string $class
+     * @param string       $attributeName
+     *
+     * @return string
+     */
+    protected function getAttributeValue($class, $attributeName)
+    {
+        try {
+            $attributes = (new \ReflectionClass($class))->getAttributes();
+            $value = null;
+            foreach ($attributes as $attribute) {
+                $attributeArguments = $attribute->getArguments();
+                if (array_key_exists($attributeName, $attributeArguments)) {
+                    $value = $attributeArguments[$attributeName];
+                    break;
+                }
+            }
+        } catch (\Exception $e) {
+            throw new RuntimeException(sprintf('Error inspecting class "%s"', $class));
+        }
+        if (null === $value) {
+            $msg = "Attribute '%s' not found in class '%s'";
+            throw new RuntimeException(sprintf($msg, $attributeName, $class));
+        }
+
+        return $value;
+    }
+
+
     /** discovers classes that are in a directory ($namespace) imediatly under 'src'
      *
      * @param string $namespace
@@ -185,8 +223,6 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
     /**
      * filters out classes not dependent of $dependencies
      * also filters out abstract classes, interfaces and traits
-     * - dependencies work with logical AND : all dependencies have to be met
-     * - exclusions work with logical OR : anny exclusion filters class out.
      *
      * @param array<string>           $classes
      * @param array<\ReflectionClass> $dependencies
@@ -208,28 +244,57 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 $this->getLogger()->warning($e->getMessage(), $logContext);
                 continue;
             }
-            if ($class->isAbstract() || $class->isInterface() || $class->isTrait()) {
-                continue;
+            if ($this->classMatchesFilters($class, $dependencies, $excludeDeps)) {
+                $filteredClasses[] = $className;
+                $this->getLogger()->debug("Keeping {class}", $logContext);
             }
-            if (!empty($excludeDeps)) {
-                foreach ($excludeDeps as $dep) {
-                    if (($dep->isInterface() && $class->implementsInterface($dep)) || $class->isSubclassOf($dep)) {
-                        continue 2;
-                    }
-                }
-            }
-            foreach ($dependencies as $dep) {
-                if (!(
-                    ($dep->isInterface() && $class->implementsInterface($dep)) ||
-                    $class->isSubclassOf($dep)
-                )) {
-                    continue 2;
-                }
-            }
-            $filteredClasses[] = $className;
-            $this->getLogger()->debug("Keeping {class}", $logContext);
         }
 
         return $filteredClasses;
+    }
+    /**
+     * classMatchesFilters - returns true if class derives from all dependencies
+     * and does not derive from any exclude dependency
+     * Also returns false if class is abstract, interface or trait
+     *
+     * @param \ReflectionClass        $class
+     * @param array<\ReflectionClass> $dependencies
+     * @param array<\ReflectionClass> $excludeDeps
+     *
+     * @return bool
+     */
+    protected function classMatchesFilters($class, $dependencies, $excludeDeps)
+    {
+        if ($class->isAbstract() || $class->isInterface() || $class->isTrait()) {
+            return false;
+        }
+        // exclusions work with logical OR : anny exclusion filters class out.
+        if (!empty($excludeDeps)) {
+            foreach ($excludeDeps as $dep) {
+                if ($this->dependsOn($class, $dep)) {
+                    return false;
+                }
+            }
+        }
+        // dependencies work with logical AND : all dependencies have to be met
+        foreach ($dependencies as $dep) {
+            if (!$this->dependsOn($class, $dep)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    /**
+     * Undocumented function
+     *
+     * @param \ReflectionClass $class
+     * @param \ReflectionClass $dep
+     *
+     * @return bool
+     */
+    protected function dependsOn($class, $dep)
+    {
+        return ($dep->isInterface() && $class->implementsInterface($dep)) || $class->isSubclassOf($dep);
     }
 }

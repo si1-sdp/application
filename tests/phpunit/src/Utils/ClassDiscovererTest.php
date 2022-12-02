@@ -201,6 +201,8 @@ class ClassDiscovererTest extends LogTestCase
      *  test filterClasses
      *
      * @covers \DgfipSI1\Application\Utils\ClassDiscoverer::filterClasses
+     * @covers \DgfipSI1\Application\Utils\ClassDiscoverer::classMatchesFilters
+     * @covers \DgfipSI1\Application\Utils\ClassDiscoverer::dependsOn
      *
      */
     public function testfilterClasses(): void
@@ -329,5 +331,37 @@ class ClassDiscovererTest extends LogTestCase
         $this->assertFalse($baseDef->hasTag('RoboTaskNoName'));
         $this->assertTrue($baseDef->hasTag('BaseClass'));
         $this->assertTrue($baseDef->hasTag('test'));
+    }
+        /**
+     *  test getAttributeValue
+     *
+     * @covers \DgfipSI1\Application\Utils\ClassDiscoverer::getAttributeValue
+     *
+     */
+    public function testGetAttributeValue(): void
+    {
+        $disc = $this->createDiscoverer();
+
+        $class = new ReflectionClass(ClassDiscoverer::class);
+        $method = $class->getMethod('getAttributeValue');
+        $method->setAccessible(true);
+
+        $name = $method->invokeArgs($disc, [ TestBaseClass::class, 'name' ]);
+        $this->assertEquals('test', $name);
+
+        $msg = '';
+        try {
+            $name = $method->invokeArgs($disc, [ TestBaseClass::class, 'foo' ]);
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+        }
+        $this->assertMatchesRegularExpression('/Attribute .foo. not found in class/', $msg);
+        $msg = '';
+        try {
+            $name = $method->invokeArgs($disc, [ 'badClass', 'foo' ]);
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+        }
+        $this->assertMatchesRegularExpression('/Error inspecting class/', $msg);
     }
 }
