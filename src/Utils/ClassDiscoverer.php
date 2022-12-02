@@ -128,21 +128,8 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
             $serviceId = $class;
             if (null !== $idAttribute) {
                 try {
-                    $this->getAttributeValue($class, $idAttribute);
+                    $serviceId = $this->getAttributeValue($class, $idAttribute);
                 } catch (\Exception $e) {
-                    $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
-                    $this->getLogger()->warning($msg, $logContext);
-                }
-                $attributes = (new \ReflectionClass($class))->getAttributes();
-                $serviceId = null;
-                foreach ($attributes as $attribute) {
-                    $attributeArguments = $attribute->getArguments();
-                    if (array_key_exists($idAttribute, $attributeArguments)) {
-                        $serviceId = $attributeArguments[$idAttribute];
-                        break;
-                    }
-                }
-                if (null === $serviceId) {
                     $msg = "invalid service id for class {class}, '.$idAttribute.' attribute argument not found";
                     $this->getLogger()->warning($msg, $logContext);
                     continue;

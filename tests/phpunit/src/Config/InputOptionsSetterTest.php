@@ -129,7 +129,6 @@ class InputOptionsSetterTest extends LogTestCase
      * test setupGlobalOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupGlobalOptions
-     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerCommandOptions
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerGlobalOptions
      *
      * @return void
@@ -151,7 +150,6 @@ class InputOptionsSetterTest extends LogTestCase
             'test-s' => [ 'type' => 'scalar'  ],
         ];
         $regGlob->invokeArgs($setter, [$globalOptions]);
-        $regCmd->invokeArgs($setter, [[]]);
         $method->invokeArgs($setter, []);
         /** @var SymfonyApplication $app */
         $app = $setter->getConfiguredApplication();
@@ -166,7 +164,6 @@ class InputOptionsSetterTest extends LogTestCase
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupCommandOptions
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerCommandOptions
-     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerGlobalOptions
      *
      * @return void
      */
@@ -182,11 +179,9 @@ class InputOptionsSetterTest extends LogTestCase
 
         // nominal test - 2 options from config, 1 option from Command::getConfigOptions
         $input = new ArgvInput([ './test']);
-        $commandOptions['hello'] = ['options' => [
-            'test-b' => [ 'type' => 'boolean' ],
-            'test-s' => [ 'type' => 'scalar' ],
-        ], ];
-        $regGlob->invokeArgs($setter, [[]]);
+        $commandOptions = new ConfigHelper();
+        $commandOptions->set('dgfip_si1.command_options.hello.options.test_b.type', 'boolean');
+        $commandOptions->set('dgfip_si1.command_options.hello.options.test_s.type', 'scalar');
         $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */
@@ -200,11 +195,6 @@ class InputOptionsSetterTest extends LogTestCase
         // test with help command
         $setter = $this->createSetter();
         $input = new ArgvInput([ './test', 'help', 'hello' ]);
-        $commandOptions['hello'] = ['options' => [
-            'test-b' => [ 'type' => 'boolean' ],
-            'test-s' => [ 'type' => 'scalar' ],
-        ], ];
-        $regGlob->invokeArgs($setter, [[]]);
         $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'help']);
         /** @var ApplicationCommand $command */
@@ -218,7 +208,6 @@ class InputOptionsSetterTest extends LogTestCase
         // test with unknown command
         $setter = $this->createSetter();
         $input = new ArgvInput([ './test', 'hello' ]);
-        $regGlob->invokeArgs($setter, [[]]);
         $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'foo']);
         /** @var ApplicationCommand $command */
@@ -229,10 +218,8 @@ class InputOptionsSetterTest extends LogTestCase
         // test with bind exception
         $setter = $this->createSetter();
         $input = new ArgvInput([ ]);
-        $commandOptions['hello'] = ['options' => [
-            'test-b' => [ 'type' => 'boolean' ],
-        ], ];
-        $regGlob->invokeArgs($setter, [[]]);
+        $commandOptions = new ConfigHelper();
+        $commandOptions->set('dgfip_si1.command_options.hello.options.test_b.type', 'boolean');
         $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */

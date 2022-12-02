@@ -9,6 +9,7 @@ use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\AbstractApplication;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\SymfonyApplication;
+use DgfipSI1\ConfigHelper\ConfigHelperInterface;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputDefinition;
@@ -32,8 +33,6 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
     {
         /** @var array<string,mixed> globalOptions*/
         $globalOptions  = $config->get('dgfip_si1.global_options');
-        /** @var array<string,mixed> commandOptions*/
-        $commandOptions = $config->get('dgfip_si1.command_options');
 
         /** @var InputInterface $input */
         $input = $this->getContainer()->get('input');
@@ -41,7 +40,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         $app = $this->getConfiguredApplication();
 
         $this->registerGlobalOptions($globalOptions);
-        $this->registerCommandOptions($commandOptions);
+        $this->registerCommandOptions($config);
         $this->setupTechnicalOptions($input);
         $this->setupGlobalOptions();
         $this->setupCommandOptions($input, (string) $app->getCmdName());
@@ -145,25 +144,23 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      * Scan application configuration and getConfigOptions() for command options
      * Adds every mappedOption returned to application MappedOptions list
      *
-     * @param array<string,mixed> $commandOptions
+     * @param ConfigInterface $config
      *
      * @return void
      */
-    protected function registerCommandOptions($commandOptions)
+    protected function registerCommandOptions($config)
     {
         /** @var array<ApplicationCommand> $commands */
         $commands = $this->getContainer()->get(SymfonyApplication::COMMAND_TAG);
         foreach ($commands as $command) {
             $cmdName = str_replace(':', '_', (string) $command->getName());
-            if (null !== $commandOptions && array_key_exists($cmdName, $commandOptions)) {
-                /** @var array<string,array<string,array<string,mixed>>> $cmdTree */
-                $cmdTree = $commandOptions[str_replace(':', '_', $cmdName)];
-                if (array_key_exists('options', $cmdTree)) {
-                    foreach ($cmdTree['options'] as $key => $options) {
-                        $opt = MappedOption::createFromConfig($key, $options);
-                        $opt->setCommand((string) $command->getName());
-                        $this->getConfiguredApplication()->addMappedOption($opt);
-                    }
+            $key = 'dgfip_si1.command_options.'.$cmdName.'.options';
+            $commandOptions = $config->get($key);
+            if (is_array($commandOptions)) {
+                foreach ($commandOptions as $key => $options) {
+                    $opt = MappedOption::createFromConfig($key, $options);
+                    $opt->setCommand((string) $command->getName());
+                    $this->getConfiguredApplication()->addMappedOption($opt);
                 }
             }
             /** @var \DgfipSI1\Application\Command $command */
