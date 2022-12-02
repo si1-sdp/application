@@ -40,7 +40,8 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         /** @var SymfonyApplication $app */
         $app = $this->getConfiguredApplication();
 
-        $this->registerAllOptions($globalOptions, $commandOptions);
+        $this->registerGlobalOptions($globalOptions);
+        $this->registerCommandOptions($commandOptions);
         $this->setupTechnicalOptions($input);
         $this->setupGlobalOptions();
         $this->setupCommandOptions($input, (string) $app->getCmdName());
@@ -140,18 +141,16 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
         }
     }
     /**
-     * Registers all options :
-     * Scan application configuration and getConfigOptions() for global and command options
+     * Registers command options :
+     * Scan application configuration and getConfigOptions() for command options
      * Adds every mappedOption returned to application MappedOptions list
      *
-     * @param array<string,mixed> $globalOptions
      * @param array<string,mixed> $commandOptions
      *
      * @return void
      */
-    protected function registerAllOptions($globalOptions, $commandOptions)
+    protected function registerCommandOptions($commandOptions)
     {
-        /* Register command options */
         /** @var array<ApplicationCommand> $commands */
         $commands = $this->getContainer()->get(SymfonyApplication::COMMAND_TAG);
         foreach ($commands as $command) {
@@ -175,6 +174,18 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
                 }
             }
         }
+    }
+    /**
+     * Registers global options :
+     * Scan application configuration and getConfigOptions() for global options
+     * Adds every mappedOption returned to application MappedOptions list
+     *
+     * @param array<string,mixed> $globalOptions
+     *
+     * @return void
+     */
+    protected function registerGlobalOptions($globalOptions)
+    {
         if (null !== $globalOptions) {
             /** @var array<string,mixed> $options */
             foreach ($globalOptions as $key => $options) {

@@ -129,15 +129,18 @@ class InputOptionsSetterTest extends LogTestCase
      * test setupGlobalOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupGlobalOptions
-     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerAllOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerCommandOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerGlobalOptions
      *
      * @return void
      */
     public function testSetupGlobalOptions()
     {
         $setter = $this->createSetter();
-        $register = $this->class->getMethod('registerAllOptions');
-        $register->setAccessible(true);
+        $regCmd = $this->class->getMethod('registerCommandOptions');
+        $regCmd->setAccessible(true);
+        $regGlob = $this->class->getMethod('registerGlobalOptions');
+        $regGlob->setAccessible(true);
 
         $method = $this->class->getMethod('setupGlobalOptions');
         $method->setAccessible(true);
@@ -147,7 +150,8 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar'  ],
         ];
-        $register->invokeArgs($setter, [$globalOptions, []]);
+        $regGlob->invokeArgs($setter, [$globalOptions]);
+        $regCmd->invokeArgs($setter, [[]]);
         $method->invokeArgs($setter, []);
         /** @var SymfonyApplication $app */
         $app = $setter->getConfiguredApplication();
@@ -161,15 +165,18 @@ class InputOptionsSetterTest extends LogTestCase
      * test setupCommandOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsSetter::setupCommandOptions
-     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerAllOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerCommandOptions
+     * @covers \DgfipSI1\Application\Config\InputOptionsSetter::registerGlobalOptions
      *
      * @return void
      */
     public function testSetupCommandOptions()
     {
         $setter = $this->createSetter();
-        $register = $this->class->getMethod('registerAllOptions');
-        $register->setAccessible(true);
+        $regCmd = $this->class->getMethod('registerCommandOptions');
+        $regCmd->setAccessible(true);
+        $regGlob = $this->class->getMethod('registerGlobalOptions');
+        $regGlob->setAccessible(true);
         $method = $this->class->getMethod('setupCommandOptions');
         $method->setAccessible(true);
 
@@ -179,7 +186,8 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar' ],
         ], ];
-        $register->invokeArgs($setter, [[], $commandOptions]);
+        $regGlob->invokeArgs($setter, [[]]);
+        $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
@@ -196,7 +204,8 @@ class InputOptionsSetterTest extends LogTestCase
             'test-b' => [ 'type' => 'boolean' ],
             'test-s' => [ 'type' => 'scalar' ],
         ], ];
-        $register->invokeArgs($setter, [[], $commandOptions]);
+        $regGlob->invokeArgs($setter, [[]]);
+        $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'help']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
@@ -209,7 +218,8 @@ class InputOptionsSetterTest extends LogTestCase
         // test with unknown command
         $setter = $this->createSetter();
         $input = new ArgvInput([ './test', 'hello' ]);
-        $register->invokeArgs($setter, [[], $this->commandOptions]);
+        $regGlob->invokeArgs($setter, [[]]);
+        $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'foo']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
@@ -222,7 +232,8 @@ class InputOptionsSetterTest extends LogTestCase
         $commandOptions['hello'] = ['options' => [
             'test-b' => [ 'type' => 'boolean' ],
         ], ];
-        $register->invokeArgs($setter, [[], $commandOptions]);
+        $regGlob->invokeArgs($setter, [[]]);
+        $regCmd->invokeArgs($setter, [$commandOptions]);
         $method->invokeArgs($setter, [ $input, 'hello']);
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
