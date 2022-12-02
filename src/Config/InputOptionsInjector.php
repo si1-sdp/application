@@ -138,52 +138,82 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             $prefix = "commands.".str_replace(':', '_', $command).".options";
             $caller = "manage $command options";
         }
+        $optName = str_replace('_', '-', $mappedOpt->getName());
+        $key = $prefix.'.'.str_replace(['.', '-' ], '_', $optName);
         if ($mappedOpt->isArgument()) {
-            $option = $mappedOpt->getArgument()->getName();
-            $inputValue = $input->getArgument($option);
+            $inputValue = $input->getArgument($optName);
         } else {
-            $option = $mappedOpt->getOption()->getName();
-            $inputValue = $input->getOption($option);
+            $inputValue = $input->getOption($optName);
             if ($mappedOpt->isArray() && [] === $inputValue) {
                 $inputValue = null;
             }
         }
-        $key = $prefix.'.'.str_replace(['.', '-' ], '_', $option);
         /** @var array<mixed>|bool|float|int|string|null $confValue */
         $confValue = $this->getConfig()->get($key);
-        // if input value is null, override it whith configured value
         $confStr = self::toString($confValue);
-        $inputStr = self::toString($inputValue);
-        $logCtx = ['name' => $caller, 'key' => $key, 'conf' => $confStr, 'input' => $inputStr];
+        $logCtx = ['name' => $caller, 'key' => $key, 'input' => self::toString($inputValue), 'conf' => $confStr];
         $this->getLogger()->debug("{key} => INPUT : {input} - CONFIG : {conf}", $logCtx);
-        // Option not specified on command line : see what we have in configuration
         if (null === $inputValue) {
-            if (null !== $confValue) {
-                if ($mappedOpt->isBool()) {
-                    $input->setOption($option, (bool) $confValue);
-                } elseif (!$mappedOpt->isArgument()) {
-                    $mappedOpt->getOption()->setDefault($confValue);
-                    $this->getLogger()->debug("    => INPUT->SET('{key}',  {conf})", $logCtx);
-                } else {
-                    $mappedOpt->getArgument()->setDefault($confValue);
-                }
+            if (null === $confValue) {
+                // both null : set from defaults:
+                $this->setValueFromDefault($input, $mappedOpt, $key, $logCtx);
             } else {
-                // option is empty in conf and on command line => take default from option
-                $value = $mappedOpt->getDefaultValue();
-                if (null !== $value) {
-                    $logCtx['input'] = self::toString($value);
-                    $this->getLogger()->debug("    => CONFIG->SET('{key}',  {input})", $logCtx);
-                    $this->config->set($key, $value);
-                }
-                if ($mappedOpt->isBool()) {
-                    $input->setOption($option, (bool) $value);
-                }
+                // input empty but value in conf
+                $this->setValueFromConfig($input, $mappedOpt, $confValue, $logCtx);
             }
         } else {
-        // Option specified on command line : override configuration whith it
+            // Option specified on command line : override configuration whith it
             $this->getLogger()->debug("    => CONFIG->SET('{key}',  {input})", $logCtx);
             $this->getConfig()->set("$key", $inputValue);
         }
+    }
+    /**
+     * synchronizeInputOptionWithConfig
+     *
+     * @param InputInterface       $input
+     * @param MappedOption         $mappedOpt
+     * @param string               $key
+     * @param array<string,string> $logCtx
+     *
+     * @return void
+     */
+    protected function setValueFromDefault($input, $mappedOpt, $key, $logCtx)
+    {
+        $value = $mappedOpt->getDefaultValue();
+        if (null !== $value) {
+            $logCtx['value'] = self::toString($value);
+            $this->getLogger()->debug("    => CONFIG->SET('{key}',  {value})", $logCtx);
+            $this->config->set($key, $value);
+            // default value for arguments are automaticaly set - no need to do it here
+            if (!$mappedOpt->isArgument()) {
+                $input->setOption($mappedOpt->getOption()->getName(), $value);
+            }
+            $this->getLogger()->debug("    => INPUT->SET('{key}',  {value})", $logCtx);
+        }
+        if ($mappedOpt->isBool()) {
+            $input->setOption($mappedOpt->getOption()->getName(), (bool) $value);
+        }
+    }
+    /**
+     * synchronizeInputOptionWithConfig
+     *
+     * @param InputInterface                          $input
+     * @param MappedOption                            $mappedOpt
+     * @param array<mixed>|bool|float|int|string|null $confValue
+     * @param array<string,string>                    $logCtx
+     *
+     * @return void
+     */
+    protected function setValueFromConfig($input, $mappedOpt, $confValue, $logCtx)
+    {
+        if ($mappedOpt->isBool()) {
+            $input->setOption($mappedOpt->getOption()->getName(), (bool) $confValue);
+        } elseif (!$mappedOpt->isArgument()) {
+            $mappedOpt->getOption()->setDefault($confValue);
+        } else {
+            $mappedOpt->getArgument()->setDefault($confValue);
+        }
+        $this->getLogger()->debug("    => INPUT->SET('{key}',  {conf})", $logCtx);
     }
     /**
      * Examine the commandline --define / -D options, and apply the provided

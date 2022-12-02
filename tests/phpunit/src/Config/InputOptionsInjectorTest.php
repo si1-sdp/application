@@ -310,6 +310,8 @@ class InputOptionsInjectorTest extends LogTestCase
      * @return void
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsInjector::syncInputWithConfig
+     * @covers \DgfipSI1\Application\Config\InputOptionsInjector::setValueFromDefault
+     * @covers \DgfipSI1\Application\Config\InputOptionsInjector::setValueFromConfig
      *
      * @dataProvider dataSyncInput
      */

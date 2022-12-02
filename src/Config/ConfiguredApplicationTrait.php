@@ -30,17 +30,17 @@ trait ConfiguredApplicationTrait
      */
     public function schemaFromOptions()
     {
-        $options = [];
-        $treeBuilder = new TreeBuilder('');
         $name = '';
+        $treeBuilder = new TreeBuilder('');
+        $options = [];
         if ($this instanceof Command) {
             $name = str_replace(':', '_', (string) $this->getName());
             $treeBuilder = new TreeBuilder("commands/$name/options");
             $options = $this->getConfiguredApplication()->getMappedOptions($this->getName());
         } elseif ($this instanceof ConfiguredApplicationInterface) {  /** @phpstan-ignore-line */
+            $name = 'global';
             $treeBuilder = new TreeBuilder("options");
             $options = $this->getConfiguredApplication()->getMappedOptions();
-            $name = 'global';
         }
         $root = $treeBuilder->getRootNode();           /** @var ArrayNodeDefinition $root */
         $children = $root->children();
@@ -48,29 +48,18 @@ trait ConfiguredApplicationTrait
             $node = null;
             if ($mappedOption->isArray()) {
                 $node = $children->arrayNode($mappedOption->getOption()->getName());
-                if (!empty($mappedOption->getOption()->getDefault())) {
-                    $node->defaultValue($mappedOption->getOption()->getDefault());
-                }
             } elseif ($mappedOption->isScalar()) {
                 $node = $children->scalarNode($mappedOption->getOption()->getName());
-                if (null !== $mappedOption->getOption()->getDefault()) {
-                    $node->defaultValue($mappedOption->getOption()->getDefault());
-                }
             } elseif ($mappedOption->isBool()) {
                 $node = $children->booleanNode($mappedOption->getOption()->getName());
-                if (true === $mappedOption->getDefaultValue()) {
-                    $node->defaultTrue();
-                } else {
-                    $node->defaultFalse();
-                }
             } elseif ($mappedOption->isArgument()) {
                 $node = $children->ScalarNode($mappedOption->getArgument()->getName());
-                if (null !== $mappedOption->getDefaultValue()) {
-                    $node->defaultValue($mappedOption->getDefaultValue());
-                }
             }
             if (null !== $node) {
                 $node->info($mappedOption->getDescription());
+                if (null !== $mappedOption->getDefaultValue() && !$mappedOption->isArray()) {
+                    $node->defaultValue($mappedOption->getDefaultValue());
+                }
             }
         }
 
