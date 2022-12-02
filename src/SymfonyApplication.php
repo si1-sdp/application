@@ -4,7 +4,6 @@
  */
 namespace DgfipSI1\Application;
 
-use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\Config\ConfigLoader;
 use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
@@ -14,11 +13,13 @@ use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Exception\RuntimeException as ExceptionRuntimeException;
+use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
 use League\Container\ContainerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -43,7 +44,7 @@ class SymfonyApplication extends AbstractApplication
             /** @var Command $command */
             $this->add($command);
             $logCtx = ['name' => 'findCommand', 'cmd' => $command->getName()];
-            $this->getLogger()->notice("command {cmd} registered", $logCtx);
+            $this->getLogger()->info("command {cmd} registered", $logCtx);
         }
         $this->getContainer()->addShared(DumpconfigCommand::class)->addTag(self::COMMAND_TAG)->addTag('dumpconfig');
         /** @var Command $cmd */
@@ -69,6 +70,16 @@ class SymfonyApplication extends AbstractApplication
         throw new ExceptionRuntimeException(sprintf("Error looking for command %s in container", $cmdName));
     }
     /**
+     * return command name
+     *
+     * @return string|null
+     */
+    public function getCmdName(): ?string
+    {
+        return parent::getCommandName($this->input);
+    }
+
+    /**
      * run application
      *
      * @inheritDoc
@@ -79,7 +90,7 @@ class SymfonyApplication extends AbstractApplication
         $logContext = ['name' => 'go'];
         $statusCode = 0;
         $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
-        $this->getLogger()->notice("Launching symfony command '{cmd_name}'", $logContext);
+        $this->getLogger()->info("Launching symfony command '{cmd_name}'", $logContext);
         $statusCode = $this->run($this->input, $this->output);
 
         return $statusCode;
@@ -99,6 +110,7 @@ class SymfonyApplication extends AbstractApplication
         // Create and configure container.
         $this->configureContainer();
 
+        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig);
         /** @var ClassDiscoverer $disc */
         $disc = $this->getContainer()->get('class_discoverer');
         $disc->addDiscoverer($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, idAttribute:'name');
@@ -131,8 +143,7 @@ class SymfonyApplication extends AbstractApplication
         // set input options according to internal config and configAwareInterface
         /** @var InputOptionsSetter $optionsSetter */
         $optionsSetter = $this->getContainer()->get('input_options_setter');
-        $command = $this->getCommandName($this->input);
-        $optionsSetter->setInputOptions($this->intConfig, "$command");
+        $optionsSetter->setInputOptions($this->intConfig);
     }
     /**
      * Configure the container for symfony applications
@@ -150,8 +161,7 @@ class SymfonyApplication extends AbstractApplication
         $this->getContainer()->addShared('output', $this->output);
         $this->getContainer()->addShared('verbosity', new IntegerArgument($verbosity));
         $this->getContainer()->addShared('internal_configuration', $this->intConfig);
-        $this->getContainer()->addShared('logger', ApplicationLogger::class)
-            ->addArguments(['internal_configuration', 'output', 'verbosity']);
+        $this->getContainer()->addShared('logger', $this->logger);
         $this->getContainer()->addShared('classLoader', $this->classLoader);
         // $this->getContainer()->addShared('class_discoverer', ClassDiscoverer::class)->addArgument('classLoader');
         $this->getContainer()->addShared('input_options_setter', InputOptionsSetter::class);

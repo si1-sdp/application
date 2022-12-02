@@ -14,14 +14,17 @@ use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
 use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\RuntimeException;
+use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use League\Container\Container;
 use League\Container\ContainerAwareTrait;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as SymfoApp;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\Output;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * class Application
@@ -73,10 +76,8 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
         $this->output->setVerbosity(ApplicationLogger::getVerbosity($this->input));
 
-        // setup a temporary logger for initialisation
-        $this->logger = new Logger($this->output);
-        $this->logger->setLogOutputStyler(new \Robo\Log\RoboLogStyle());
-
+        // setup a temporary logger
+        $this->logger = ApplicationLogger::initLogger($this->output);
         // setup app internal configuration
         $this->setupApplicationConfig();
 
@@ -165,7 +166,7 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     public function addMappedOption($opt)
     {
         $logCtx = ['name' => 'addMappedOption', 'opt' => $opt->getName(), 'cmd' => $opt->getCommand() ?? 'global'];
-        $this->getLogger()->debug('Adding option {opt} for {cmd}', $logCtx);
+        $this->getLogger()->debug('Adding '.($opt->isArgument() ? 'argument' : 'option').' {opt} for {cmd}', $logCtx);
         if (null !== $opt->getCommand()) {
             $key = $opt->getCommand();
         } else {

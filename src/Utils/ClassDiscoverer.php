@@ -101,7 +101,7 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 $this->registerClasses($filtered, $def->getTag(), $def->getIdAttribute());
                 $logContext['count'] = count($filtered);
                 $message = "{tag} : Search {deps} classes, excluding {excludes} : {count} classe(s) found.";
-                $this->getLogger()->notice($message, $logContext);
+                $this->getLogger()->info($message, $logContext);
             }
         }
         foreach ($this->tagCount as $tag => $count) {

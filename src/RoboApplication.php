@@ -8,6 +8,7 @@ use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
 use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Config\InputOptionsSetter;
+use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
 use Robo\Robo;
@@ -41,7 +42,7 @@ class RoboApplication extends AbstractApplication
         }
         if (!empty($commands)) {
             $logContext['count'] = count($commands);
-            $this->getLogger()->notice("{count} robo command(s) found", $logContext);
+            $this->getLogger()->info("{count} robo command(s) found", $logContext);
         }
     }
 
@@ -59,7 +60,7 @@ class RoboApplication extends AbstractApplication
         $runner = new RoboRunner();
         $runner->setContainer($this->getContainer());
         //print(implode("\n", array_keys($this->container->getDefinitions()))."\n\n");
-        $this->getLogger()->notice("Launching robo command", $logContext);
+        $this->getLogger()->info("Launching robo command", $logContext);
         /** @var array<Tasks> $commandClasses */
         $commandClasses = $this->getContainer()->get(self::COMMAND_TAG);
         /** @phpstan-ignore-next-line */
@@ -77,6 +78,7 @@ class RoboApplication extends AbstractApplication
         // set application's name and version
         $this->setApplicationNameAndVersion();
         $this->configureContainer();
+        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig);
         /** @var ClassDiscoverer $disc */
         $disc = $this->getContainer()->get('class_discoverer');
         $namespace = $this->getNameSpace(self::COMMAND_TAG);
@@ -108,8 +110,7 @@ class RoboApplication extends AbstractApplication
         $this->getContainer()->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
         $this->getContainer()->addShared('verbosity', new IntegerArgument($verbosity));
         $this->getContainer()->addShared('internal_configuration', $this->intConfig);
-        $this->getContainer()->addShared('logger', ApplicationLogger::class)
-            ->addArguments(['internal_configuration', 'output', 'verbosity']);
+        $this->getContainer()->addShared('logger', $this->logger);
         $this->getContainer()->addShared('input_options_setter', InputOptionsSetter::class);
     }
 }

@@ -1,12 +1,15 @@
 <?php
 /*
- * This file is part of DgfipSI1\Application
+ * This file is part of DgfipSI1\Application\Utils
  */
-namespace DgfipSI1\Application;
+namespace DgfipSI1\Application\Utils;
 
 use Consolidation\Config\ConfigInterface;
 use Consolidation\Log\Logger;
 use DgfipSI1\Application\ApplicationSchema as CONF;
+use DgfipSI1\Application\Exception\RuntimeException;
+use DgfipSI1\ConfigHelper\ConfigHelper;
+use DgfipSI1\ConfigHelper\ConfigHelperInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Monolog\Logger as Monolog;
 use Monolog\Handler\StreamHandler;
@@ -15,6 +18,7 @@ use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\PsrHandler;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Logger\ConsoleLogger;
 
@@ -22,21 +26,16 @@ use Symfony\Component\Console\Logger\ConsoleLogger;
  * class Application
  *
  */
-class ApplicationLogger implements LoggerInterface
+class ApplicationLogger
 {
-    /** @var Monolog $logger */
-    protected $logger;
-
     /**
-     * Constructor for Application logger class
+     * Initialize a logger with only the PsrHandler
      *
-     * @param ConfigInterface $config
      * @param OutputInterface $output
-     * @param int             $verbosity
      *
-     * return void
+     * @return LoggerInterface
      */
-    public function __construct($config, $output, $verbosity)
+    public static function initLogger($output)
     {
         $monologLevels = [
             OutputInterface::VERBOSITY_QUIET         => MonLvl::fromName('WARNING'),
@@ -45,12 +44,40 @@ class ApplicationLogger implements LoggerInterface
             OutputInterface::VERBOSITY_VERY_VERBOSE  => MonLvl::fromName('DEBUG'),
             OutputInterface::VERBOSITY_DEBUG         => MonLvl::fromName('DEBUG'),
         ];
-        $this->logger = new Monolog('application_logger');
-        $consoleLogger = new Logger($output);
+        $vlMap = [
+            LogLevel::EMERGENCY => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::ALERT => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::CRITICAL => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::ERROR => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::WARNING => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::NOTICE => OutputInterface::VERBOSITY_NORMAL,
+            LogLevel::INFO => OutputInterface::VERBOSITY_VERBOSE,
+            LogLevel::DEBUG => OutputInterface::VERBOSITY_DEBUG,
+        ];
+        $logger = new Monolog('application_logger');
+        $consoleLogger = new Logger($output, $vlMap);
         $consoleLogger->setLogOutputStyler(new \Robo\Log\RoboLogStyle());
+        $consoleHandler = new PsrHandler($consoleLogger, $monologLevels[$output->getVerbosity()]);
+        $logger->pushHandler($consoleHandler);
 
-
+        return $logger;
+    }
+    /**
+     * Configures the logger after having read the configuration
+     *
+     * @param LoggerInterface       $logger
+     * @param ConfigHelperInterface $config
+     *
+     * @return void
+     */
+    public static function configureLogger($logger, $config)
+    {
         $logDirectory = $config->get(CONF::LOG_DIRECTORY);
+        if (!$logger instanceof Monolog) {
+            $logger->alert("Advanced logger configuration applies only to Monolog");
+
+            return;
+        }
         if (is_string($logDirectory)) {
             if (!file_exists($logDirectory)) {
                 set_error_handler(function ($errno, $errstr) use ($logDirectory) {
@@ -65,7 +92,7 @@ class ApplicationLogger implements LoggerInterface
                 $logfile = $config->get(CONF::APPLICATION_NAME).".log";
             }
             $logContext = [ 'name' => 'new ApplicationLogger', 'file' => "$logDirectory/$logfile" ];
-            $consoleLogger->notice("starting file logger. Filename = {file}", $logContext);
+            $logger->info("starting file logger. Filename = {file}", $logContext);
             /** @var \Monolog\Level $configuredLogLevel */
             $configuredLogLevel = $config->get(CONF::LOG_LEVEL);
             $sh = new StreamHandler("$logDirectory/$logfile", $configuredLogLevel);
@@ -82,10 +109,8 @@ class ApplicationLogger implements LoggerInterface
             }
             $formatter = new LineFormatter($outputFormat, $dateFormat);
             $sh->setFormatter($formatter);
-            $this->logger->pushHandler($sh);
+            $logger->pushHandler($sh);
         }
-        $consoleHandler = new PsrHandler($consoleLogger, $monologLevels[$verbosity]);
-        $this->logger->pushHandler($consoleHandler);
     }
     /**
      * Detect verbosity specified on command line
@@ -115,114 +140,5 @@ class ApplicationLogger implements LoggerInterface
         }
 
         return $verbosity;
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function emergency(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->emergency($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function alert(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->alert($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function critical(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->critical($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function error(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->error($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function warning(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->warning($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function notice(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->notice($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function info(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->info($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function debug(string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->debug($message, $context);
-    }
-    /**
-     * logging wrapper
-     *
-     * @param \Monolog\Level       $level
-     * @param string|\Stringable   $message
-     * @param array<string,string> $context
-     *
-     * @return void
-     */
-    public function log($level, string|\Stringable $message, array $context = []): void
-    {
-        $this->logger->log($level, $message, $context);
     }
 }

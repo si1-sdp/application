@@ -153,7 +153,7 @@ class ClassDiscovererTest extends LogTestCase
         $disc->addDiscoverer(self::TEST_NAMESPACE, 'tag', Tasks::class);
         $disc->discoverAllClasses();
         $this->assertDebugInLog('Discovering all classes...');
-        $this->assertNoticeInLog('tag : Search [Tasks] classes, excluding [] : 1 classe(s) found.', true);
+        $this->assertInfoInLog('tag : Search [Tasks] classes, excluding [] : 1 classe(s) found.', true);
         $this->assertLogEmpty();
 
         $disc = $this->createDiscoverer();
