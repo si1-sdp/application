@@ -59,14 +59,11 @@ class RoboApplication extends AbstractApplication
         // Instantiate Robo Runner.
         $runner = new RoboRunner();
         $runner->setContainer($this->getContainer());
-        //print(implode("\n", array_keys($this->container->getDefinitions()))."\n\n");
         $this->getLogger()->info("Launching robo command", $logContext);
         /** @var array<Tasks> $commandClasses */
         $commandClasses = $this->getContainer()->get(self::COMMAND_TAG);
-        /** @phpstan-ignore-next-line */
-        $statusCode  = $runner->run($this->input, $this->output, $this, $commandClasses);
 
-        return $statusCode;
+        return $runner->run($this->input, $this->output, $this, $commandClasses);        /** @phpstan-ignore-line */
     }
     /**
      * finalize application before run

@@ -91,9 +91,8 @@ class SymfonyApplication extends AbstractApplication
         $statusCode = 0;
         $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
         $this->getLogger()->info("Launching symfony command '{cmd_name}'", $logContext);
-        $statusCode = $this->run($this->input, $this->output);
 
-        return $statusCode;
+        return $this->run($this->input, $this->output);
     }
 
     /**
@@ -163,7 +162,6 @@ class SymfonyApplication extends AbstractApplication
         $this->getContainer()->addShared('internal_configuration', $this->intConfig);
         $this->getContainer()->addShared('logger', $this->logger);
         $this->getContainer()->addShared('classLoader', $this->classLoader);
-        // $this->getContainer()->addShared('class_discoverer', ClassDiscoverer::class)->addArgument('classLoader');
         $this->getContainer()->addShared('input_options_setter', InputOptionsSetter::class);
         $this->getContainer()->addShared('input_options_injector', InputOptionsInjector::class);
         $this->getContainer()->addShared('configuration_loader', ConfigLoader::class)

@@ -140,11 +140,9 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 $this->getLogger()->debug("Adding class {class} to container", $logContext);
                 $serviceDefinition = $this->getContainer()->addShared((string) $class);
             }
-            if (null !== $serviceId) {
-                if (!$serviceDefinition->hasTag((string) $serviceId)) {
-                    $this->getLogger()->debug("Add tag {id} for class {class}", $logContext);
-                    $serviceDefinition->addTag((string) $serviceId);
-                }
+            if (null !== $serviceId && !$serviceDefinition->hasTag((string) $serviceId)) {
+                $this->getLogger()->debug("Add tag {id} for class {class}", $logContext);
+                $serviceDefinition->addTag((string) $serviceId);
             }
             if (!$serviceDefinition->hasTag($tag)) {
                 $this->getLogger()->debug("Add tag {tag} for class {class}", $logContext);
@@ -252,25 +250,28 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
      */
     protected function classMatchesFilters($class, $dependencies, $excludeDeps)
     {
+        $ret = true;
         if ($class->isAbstract() || $class->isInterface() || $class->isTrait()) {
-            return false;
-        }
-        // exclusions work with logical OR : anny exclusion filters class out.
-        if (!empty($excludeDeps)) {
-            foreach ($excludeDeps as $dep) {
-                if ($this->dependsOn($class, $dep)) {
-                    return false;
+            $ret = false;
+        } else {
+            // dependencies work with logical AND : all dependencies have to be met
+            foreach ($dependencies as $dep) {
+                if (!$this->dependsOn($class, $dep)) {
+                    $ret = false;
+                }
+            }
+            // exclusions work with logical OR : anny exclusion filters class out.
+            if (!empty($excludeDeps) && $ret) {
+                foreach ($excludeDeps as $dep) {
+                    if ($this->dependsOn($class, $dep)) {
+                        $ret = false;
+                        break;
+                    }
                 }
             }
         }
-        // dependencies work with logical AND : all dependencies have to be met
-        foreach ($dependencies as $dep) {
-            if (!$this->dependsOn($class, $dep)) {
-                return false;
-            }
-        }
 
-        return true;
+        return $ret;
     }
     /**
      * Undocumented function

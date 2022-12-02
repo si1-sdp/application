@@ -73,7 +73,6 @@ class MappedOption
             }
             $this->input = new InputOption($name, $optShort, $mode, $description, $default);
         } else {
-//            print "MODE FOR ".$this->name." = $mode\n";
             $this->input = new InputArgument($name, $mode, $description, $default);
         }
     }
@@ -96,7 +95,7 @@ class MappedOption
         /** @var bool $required */
         $required    = array_key_exists(self::OPT_REQUIRED, $options) ? $options[self::OPT_REQUIRED] : false;
         if (!array_key_exists(self::OPT_TYPE, $options)) {
-            throw new \Exception(sprintf('Missing option type for %s', $name));
+            throw new RuntimeException(sprintf('Missing option type for %s', $name));
         }
         /** @var string $optType */
         $optType = $options[self::OPT_TYPE];
@@ -104,9 +103,9 @@ class MappedOption
             $type = OptionType::from($optType);
             $option = new MappedOption($name, $type, $optDesc, $shortOpt, $optDefault, $required);
         } catch (\ValueError $e) {
-            throw new \Exception(sprintf("Unknown option type '%s' for option '%s'", $optType, $name));
+            throw new RuntimeException(sprintf("Unknown option type '%s' for option '%s'", $optType, $name));
         } catch (\Exception $e) {
-            throw new \Exception(sprintf('Error creating option %s : %s', $name, $e->getMessage()));
+            throw new RuntimeException(sprintf('Error creating option %s : %s', $name, $e->getMessage()));
         }
 
         return $option;

@@ -57,8 +57,8 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
      */
     public function configure($config)
     {
-        /** @var string $configDir */
-        $configDir             = $config->get(CONF::CONFIG_DIRECTORY);
+        /** @var string $dir */
+        $dir                   = $config->get(CONF::CONFIG_DIRECTORY);
         /** @var array<string> $configNamePatterns */
         $configNamePatterns    = $config->get(CONF::CONFIG_NAME_PATTERNS);
         /** @var array<string> $configPathPatterns */
@@ -67,14 +67,14 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         $configDepth = $config->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
         /** @var bool $configSortByName */
         $configSortByName      = $config->get(CONF::CONFIG_SORT_BY_NAME);
-        /** @var string $appRoot */
-        $appRoot               = $config->get(CONF::RUNTIME_ROOT_DIRECTORY);
-        $this->configDir       = $configDir;
+        /** @var string $root */
+        $root                  = $config->get(CONF::RUNTIME_ROOT_DIRECTORY);
+        $this->configDir       = $dir;
         $this->namePatterns    = $configNamePatterns;
         $this->pathPatterns    = $configPathPatterns;
         $this->depth           = $configDepth;
         $this->sortByName      = $configSortByName;
-        $this->appRoot         = $appRoot;
+        $this->appRoot         = $root;
     }
     /**
      * Loads all configuration files

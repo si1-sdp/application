@@ -38,7 +38,6 @@ trait ConfiguredApplicationTrait
             $treeBuilder = new TreeBuilder("commands/$name/options");
             $options = $this->getConfiguredApplication()->getMappedOptions($this->getName());
         } elseif ($this instanceof ConfiguredApplicationInterface) {  /** @phpstan-ignore-line */
-            $name = 'global';
             $treeBuilder = new TreeBuilder("options");
             $options = $this->getConfiguredApplication()->getMappedOptions();
         }

@@ -82,7 +82,7 @@ class ApplicationLogger
             if (!file_exists($logDirectory)) {
                 set_error_handler(function ($errno, $errstr) use ($logDirectory) {
                     $errMsg = "Can't create log directory '%s' - cause : %s";
-                    throw new \Exception(sprintf($errMsg, $logDirectory, $errstr));
+                    throw new RuntimeException(sprintf($errMsg, $logDirectory, $errstr));
                 });
                 mkdir($logDirectory);
                 restore_error_handler();

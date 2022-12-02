@@ -89,9 +89,7 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             return;
         }
         $commandName = (string) $command->getName();
-        //$definition = $command->getDefinition();
         $mappedOptions = $this->getConfiguredApplication()->getMappedOptions($commandName);
-        //$inputOptions = $definition->getOptions();
         $this->getLogger()->debug("Synchronizing config and inputOptions", $logCtx);
         foreach ($mappedOptions as $option) {
             $this->syncInputWithConfig($input, $option, $commandName);
@@ -231,7 +229,6 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
         if ($input->hasOption('define')) {
             /** @var array<string> $configDefinitions */
             $configDefinitions = $input->getOption('define');
-            //print_r($configDefinitions);
             foreach ($configDefinitions as $value) {
                 list($key, $value) = $this->splitConfigKeyValue($value);
                 $this->config->set("$key", $value);
