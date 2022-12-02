@@ -55,7 +55,6 @@ class RoboApplication extends AbstractApplication
     {
         $this->finalize();
         $logContext = ['name' => 'go'];
-        $statusCode = 0;
         // Instantiate Robo Runner.
         $runner = new RoboRunner();
         $runner->setContainer($this->getContainer());

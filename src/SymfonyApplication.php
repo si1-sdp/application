@@ -88,7 +88,6 @@ class SymfonyApplication extends AbstractApplication
     {
         $this->finalize();
         $logContext = ['name' => 'go'];
-        $statusCode = 0;
         $logContext['cmd_name'] = $this->isSingleCommand() ? 'list' : $this->input->getFirstArgument();
         $this->getLogger()->info("Launching symfony command '{cmd_name}'", $logContext);
 
