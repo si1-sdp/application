@@ -46,13 +46,13 @@ trait ConfiguredApplicationTrait
         foreach ($options as $mappedOption) {
             $node = null;
             if ($mappedOption->isArray()) {
-                $node = $children->arrayNode($mappedOption->getOption()->getName());
+                $node = $children->arrayNode($mappedOption->getName());
             } elseif ($mappedOption->isScalar()) {
-                $node = $children->scalarNode($mappedOption->getOption()->getName());
+                $node = $children->scalarNode($mappedOption->getName());
             } elseif ($mappedOption->isBool()) {
-                $node = $children->booleanNode($mappedOption->getOption()->getName());
+                $node = $children->booleanNode($mappedOption->getName());
             } elseif ($mappedOption->isArgument()) {
-                $node = $children->ScalarNode($mappedOption->getArgument()->getName());
+                $node = $children->ScalarNode($mappedOption->getName());
             }
             if (null !== $node) {
                 $node->info($mappedOption->getDescription());
