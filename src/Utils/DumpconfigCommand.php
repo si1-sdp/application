@@ -2,7 +2,7 @@
 /*
  * This file is part of dgfip-si1/process-helper
  */
-namespace DgfipSI1\Application\Config;
+namespace DgfipSI1\Application\Utils;
 
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\Config\MappedOption;

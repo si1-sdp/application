@@ -3,9 +3,9 @@
  * This file is part of dgfip-si1/application.
  *
  */
-namespace DgfipSI1\ApplicationTests\Config;
+namespace DgfipSI1\ApplicationTests\Utils;
 
-use DgfipSI1\Application\Config\DumpconfigCommand;
+use DgfipSI1\Application\Utils\DumpconfigCommand;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -28,7 +28,7 @@ class DumpConfigCommandTest extends LogTestCase
     /**
      * test setInputOptions
      *
-     * @covers \DgfipSI1\Application\Config\DumpConfigCommand
+     * @covers \DgfipSI1\Application\Utils\DumpConfigCommand
      *
      * @return void
      */
