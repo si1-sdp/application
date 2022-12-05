@@ -45,6 +45,8 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     public const EVENT_LISTENER_TAG = 'eventListener';
     public const DEFAULT            = 'default';
 
+    /** @var string $entryPoint */
+    protected $entryPoint;
     /** @var string $appName */
     protected $appName;
     /** @var string $appVersion */
@@ -72,6 +74,10 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         parent::__construct();
 
         // initialize input and output
+        $this->entryPoint = '';
+        if (!empty($argv)) {
+            $this->entryPoint = $argv[0];
+        }
         $this->input  = new ArgvInput($argv);
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
         $this->output->setVerbosity(ApplicationLogger::getVerbosity($this->input));
@@ -155,6 +161,15 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         /** @var string $ret */
 
         return $ret;
+    }
+    /**
+     * gets the entrypoint
+     *
+     * @return string
+     */
+    public function getEntryPoint()
+    {
+        return $this->entryPoint;
     }
     /**
      * Adds a mapped option to application configuration

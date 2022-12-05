@@ -103,4 +103,10 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
      * Gets the InputDefinition related to this Application.
      */
     public function getDefinition(): InputDefinition;
+    /**
+     * gets the entrypoint
+     *
+     * @return string
+     */
+    public function getEntryPoint();
 }

@@ -7,7 +7,6 @@ namespace DgfipSI1\Application;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\Config\ConfigLoader;
 use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
-use DgfipSI1\Application\Config\DumpconfigCommand;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Contracts\ConfigAwareInterface;
@@ -15,6 +14,8 @@ use DgfipSI1\Application\Contracts\LoggerAwareInterface;
 use DgfipSI1\Application\Exception\RuntimeException as ExceptionRuntimeException;
 use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
+use DgfipSI1\Application\Utils\DumpconfigCommand;
+use DgfipSI1\Application\Utils\MakePharCommand;
 use League\Container\Argument\Literal\IntegerArgument;
 use League\Container\ContainerAwareInterface;
 use Psr\Log\LoggerInterface;
@@ -46,9 +47,13 @@ class SymfonyApplication extends AbstractApplication
             $logCtx = ['name' => 'findCommand', 'cmd' => $command->getName()];
             $this->getLogger()->info("command {cmd} registered", $logCtx);
         }
-        $this->getContainer()->addShared(DumpconfigCommand::class)->addTag(self::COMMAND_TAG)->addTag('dumpconfig');
+        $this->getContainer()->addShared(DumpconfigCommand::class)->addTag(self::COMMAND_TAG)->addTag('dump-config');
+        $this->getContainer()->addShared(MakePharCommand::class)->addTag(self::COMMAND_TAG)->addTag('make-phar');
         /** @var Command $cmd */
         $cmd = $this->getContainer()->get(DumpconfigCommand::class);
+        $this->add($cmd);
+        /** @var Command $cmd */
+        $cmd = $this->getContainer()->get(MakePharCommand::class);
         $this->add($cmd);
     }
     /**
