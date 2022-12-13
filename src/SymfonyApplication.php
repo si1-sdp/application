@@ -52,9 +52,12 @@ class SymfonyApplication extends AbstractApplication
         /** @var Command $cmd */
         $cmd = $this->getContainer()->get(DumpconfigCommand::class);
         $this->add($cmd);
-        /** @var Command $cmd */
-        $cmd = $this->getContainer()->get(MakePharCommand::class);
-        $this->add($cmd);
+        // have make-phar command available only if we're not in a phar
+        if (!$this->pharRoot) {
+            /** @var Command $cmd */
+            $cmd = $this->getContainer()->get(MakePharCommand::class);
+            $this->add($cmd);
+        }
     }
     /**
      * Return command object from container
@@ -113,7 +116,7 @@ class SymfonyApplication extends AbstractApplication
         // Create and configure container.
         $this->configureContainer();
 
-        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig);
+        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig, $this->homeDir);
         /** @var ClassDiscoverer $disc */
         $disc = $this->getContainer()->get('class_discoverer');
         $disc->addDiscoverer($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, idAttribute:'name');

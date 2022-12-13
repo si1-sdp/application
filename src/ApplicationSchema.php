@@ -32,12 +32,10 @@ class ApplicationSchema implements ConfigurationInterface
     public const CONFIG_SORT_BY_NAME     = 'dgfip_si1.configuration.sort_by_name';
     public const CONFIG_SEARCH_RECURSIVE = 'dgfip_si1.configuration.search_recursive';
 
+    public const PHAR_EXCLUDES           = 'dgfip_si1.phar.excludes';
+
     public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
     public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
-
-    public const RUNTIME_INT_CONFIG      = "dgfip_si1.runtime.app_config_file";
-    public const RUNTIME_ROOT_DIRECTORY  = "dgfip_si1.runtime.root_directory";
-
 
     public const GLOBAL_OPTIONS          = 'dgfip_si1.global_options';
 
@@ -94,6 +92,13 @@ class ApplicationSchema implements ConfigurationInterface
                             ->info("sort files strictly by filename (instead of by full path)")->end()
                         ->booleanNode('search_recursive')->defaultFalse()
                             ->info("recurse search in sub directories")->end()
+                    ->end()
+                ->end()
+                ->arrayNode('phar')
+                    ->children()
+                        ->arrayNode('excludes')
+                            ->scalarPrototype()->end()
+                        ->end()
                     ->end()
                 ->end()
                 ->append($this->inputOptions('global_options'))

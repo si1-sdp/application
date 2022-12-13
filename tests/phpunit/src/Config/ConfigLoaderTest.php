@@ -6,8 +6,8 @@
 namespace DgfipSI1\ApplicationTests\Config;
 
 use Composer\Autoload\ClassLoader;
+use Consolidation\Config\Util\ConfigOverlay;
 use DgfipSI1\Application\AbstractApplication;
-use DgfipSI1\Application\Application;
 use DgfipSI1\Application\Config\ConfigLoader;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\InputOptionsSetter;
@@ -19,6 +19,8 @@ use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use League\Container\Container;
+use Mockery;
+use Mockery\Mock;
 use ReflectionClass;
 use ReflectionProperty;
 use Symfony\Component\Console\Command\Command;
@@ -82,8 +84,14 @@ class ConfigLoaderTest extends LogTestCase
         $this->de->setAccessible(true);
         $this->sn = $this->class->getProperty('sortByName');
         $this->sn->setAccessible(true);
-        $this->root = $this->class->getProperty('appRoot');
-        $this->root->setAccessible(true);
+    }
+    /**
+     *
+     * @inheritDoc
+     */
+    public function tearDown(): void
+    {
+        \Mockery::close();
     }
     /**
      * test subscribedEvents
@@ -112,7 +120,6 @@ class ConfigLoaderTest extends LogTestCase
             CONF::CONFIG_PATH_PATTERNS     => ['path1', 'path2'],
             CONF::CONFIG_SEARCH_RECURSIVE  => true,
             CONF::CONFIG_SORT_BY_NAME      => 'sort',
-            CONF::RUNTIME_ROOT_DIRECTORY   => 'root_dir',
         ];
         $loader = $this->createConfigLoader(config: $testConfig);
         $this->assertEquals('conf_dir', $this->cd->getValue($loader));
@@ -120,7 +127,6 @@ class ConfigLoaderTest extends LogTestCase
         $this->assertEquals(['path1', 'path2'], $this->pp->getValue($loader));
         $this->assertEquals(-1, $this->de->getValue($loader));
         $this->assertEquals('sort', $this->sn->getValue($loader));
-        $this->assertEquals('root_dir', $this->root->getValue($loader));
     }
     /**
      * test loadConfiguration method
@@ -130,35 +136,28 @@ class ConfigLoaderTest extends LogTestCase
     public function testLoadConfiguration(): void
     {
         $testConfig = [
-            CONF::CONFIG_DIRECTORY         => null,
+            CONF::CONFIG_DIRECTORY         => 'tests',
             CONF::CONFIG_NAME_PATTERNS     => ['config.yml'],
-            CONF::CONFIG_PATH_PATTERNS     => ['test'],
+            CONF::CONFIG_PATH_PATTERNS     => ['data'],
             CONF::CONFIG_SEARCH_RECURSIVE  => true,
             CONF::CONFIG_SORT_BY_NAME      => true,
-            CONF::RUNTIME_ROOT_DIRECTORY   => __DIR__,
         ];
-        $loader = $this->createConfigLoader(config: $testConfig);
+        $loader = $this->createConfigLoader(config: $testConfig, mock: true);
         $argv = [ './test'];
         $cmd = new Command('hello');
         $event = new ConsoleCommandEvent($cmd, new ArgvInput($argv), new NullOutput());
-        $loader->loadConfiguration($event);
-        $msg = 'Loading config: paths=[test] - names=[config.yml] - sort by name - depth = -1';
-        $this->assertDebugInLog($msg, true);
-        $this->assertLogEmpty();
 
-        $loader->getContainer()->addShared(HelloWorldSchema::class)->addTag(AbstractApplication::GLOBAL_CONFIG_TAG);
-        $loader->getContainer()->addShared(HelloWorldCommand::class)->addTag(SymfonyApplication::COMMAND_CONFIG_TAG);
-        $loader->loadConfiguration($event);
+        $loader->shouldReceive('configureSchemas')->once();                    /** @phpstan-ignore-line */
+        /** @phpstan-ignore-next-line */
+        $loader->shouldReceive('loadConfigFromOptions')->once()->with($event)->andReturn(false);
+        $loader->shouldReceive('loadConfigFiles')->once();                     /** @phpstan-ignore-line */
+        $loader->shouldReceive('addConfigFromOptions')->once()->with($event);  /** @phpstan-ignore-line */
 
+        $loader->loadConfiguration($event);
         /** @var ConfigHelper $config */
         $config = $loader->getConfig();
-        $dump = 'commands:
-  hello:
-    options:
-      yell: false
-      formal: true
-';
-        $this->assertEquals($dump, $config->dumpConfig());
+        $config->set('foo', 'bar');
+        $this->assertEquals('bar', $config->getContext(ConfigOverlay::PROCESS_CONTEXT)->get('foo'));
     }
     /**
      * configureSchemas
@@ -298,25 +297,23 @@ class ConfigLoaderTest extends LogTestCase
         $this->assertLogEmpty();
 
         // test2 - non existent configured config directory
-        $this->cd->setValue($loader, 'foo');
+        $this->cd->setValue($loader, '/foo');
         $msg = '';
         try {
             $method->invoke($loader);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Configuration directory 'foo' not found", $msg);
+        $this->assertEquals("Configuration directory '/foo' not found", $msg);
         $this->assertLogEmpty();
 
-        // test3 - non existent root directory
-        $this->cd->setValue($loader, null);
-        $this->root->setValue($loader, 'foo');
+        // test3 - existent absolute path directory
+        $this->cd->setValue($loader, realpath(__DIR__));
         $method->invoke($loader);
-        $this->assertEquals('[]', $config->dumpConfig());
-        $this->assertLogEmpty();
+        $this->assertDebugInLog(sprintf($logMsg, '', 'config.yml', 'name', 0), true);
 
         // test4 - search in data dir
-        $this->root->setValue($loader, $this->appRoot);
+        $this->cd->setValue($loader, 'tests');
         $this->pp->setValue($loader, ['data']);
         $this->np->setValue($loader, ['*.yml']);
         $this->de->setValue($loader, -1);
@@ -360,10 +357,11 @@ class ConfigLoaderTest extends LogTestCase
      *
      * @param array<string,string>     $argv
      * @param array<string,mixed>|null $config
+     * @param bool                     $mock
      *
      * @return ConfigLoader;
      */
-    protected function createConfigLoader($argv = [], $config = null)
+    protected function createConfigLoader($argv = [], $config = null, $mock = false)
     {
         $defaultConfig = [
             CONF::CONFIG_DIRECTORY         => null,
@@ -371,11 +369,19 @@ class ConfigLoaderTest extends LogTestCase
             CONF::CONFIG_PATH_PATTERNS     => [ ],
             CONF::CONFIG_SEARCH_RECURSIVE  => false,
             CONF::CONFIG_SORT_BY_NAME      => true,
-            CONF::RUNTIME_ROOT_DIRECTORY   => $this->appRoot,
         ];
         $argv = [ './testapp' ] + $argv;
         $confArray = $config ?? $defaultConfig;
-        $loader = new ConfigLoader();
+        if ($mock) {
+            /** @var Mock $mock */
+            $mock = Mockery ::mock(ConfigLoader::class);
+            $mock->shouldAllowMockingProtectedMethods();
+            $mock->makePartial();
+            $loader = $mock;
+        } else {
+            $loader = new ConfigLoader();
+        }
+        /** @var ConfigLoader $loader */
         $loader->setContainer(new Container());
         $this->logger = new TestLogger();
         $loader->setLogger($this->logger);

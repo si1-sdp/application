@@ -67,10 +67,11 @@ class ApplicationLogger
      *
      * @param LoggerInterface       $logger
      * @param ConfigHelperInterface $config
+     * @param string                $homeDir
      *
      * @return void
      */
-    public static function configureLogger($logger, $config)
+    public static function configureLogger($logger, $config, $homeDir)
     {
         $logDirectory = $config->get(CONF::LOG_DIRECTORY);
         if (!$logger instanceof Monolog) {
@@ -79,6 +80,9 @@ class ApplicationLogger
             return;
         }
         if (is_string($logDirectory)) {
+            if (substr($logDirectory, 0, 1) !== '/' && strpos($logDirectory, '://') === false) {
+                $logDirectory = (string) realpath($homeDir).DIRECTORY_SEPARATOR.$logDirectory;
+            }
             if (!file_exists($logDirectory)) {
                 set_error_handler(function ($errno, $errstr) use ($logDirectory) {
                     $errMsg = "Can't create log directory '%s' - cause : %s";

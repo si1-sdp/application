@@ -109,4 +109,28 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
      * @return string
      */
     public function getEntryPoint();
+        /**
+     * gets the home directory (directory where entrypoint is located)
+     *
+     * @return string
+     */
+    public function getHomeDir();
+    /**
+     * gets the current directory
+     *
+     * @return string
+     */
+    public function getCurrentDir();
+    /**
+     * gets the current directory
+     *
+     * @return string
+     */
+    public function getPharRoot();
+    /**
+     * gets phar exclusions
+     *
+     * @return array<string>
+     */
+    public function getPharExcludes();
 }

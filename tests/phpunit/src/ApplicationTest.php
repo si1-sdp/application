@@ -8,6 +8,7 @@ namespace DgfipSI1\ApplicationTests;
 use Composer\Autoload\ClassLoader;
 use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\AbstractApplication;
+use DgfipSI1\Application\Application;
 use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\ApplicationSchema;
@@ -49,6 +50,7 @@ use ReflectionClass;
  * @uses \DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses \DgfipSI1\Application\Utils\DiscovererDefinition
  * @uses \DgfipSI1\Application\Utils\ApplicationLogger
+ * @uses \DgfipSI1\Application\Utils\MakePharCommand
  */
 class ApplicationTest extends LogTestCase
 {
@@ -138,7 +140,25 @@ class ApplicationTest extends LogTestCase
         $config = $configProp->getValue($app);
         $this->assertInstanceOf('DgfipSI1\ConfigHelper\ConfigHelper', $config);
     }
+   /**
+     * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
+     * @covers DgfipSI1\Application\ApplicationSchema
+     */
+    public function testSetupApplicationPharConfig(): void
+    {
+        /* make setupApplicationConfig available */
+        $ac = $this->class->getMethod('setupApplicationConfig');
+        $ac->setAccessible(true);
+        $ic = $this->class->getProperty('intConfig');
+        $ic->setAccessible(true);
+        $pr = $this->class->getProperty('pharRoot');
+        $pr->setAccessible(true);
 
+        $app = new SymfonyApplication($this->loader, ['./test']);
+        $phar = 'phar://'.realpath(__DIR__.'/../../data/config/test.phar');
+        $pr->setValue($app, $phar);
+        $ac->invoke($app);
+    }
     /**
      * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
      * @covers DgfipSI1\Application\ApplicationSchema
@@ -150,6 +170,8 @@ class ApplicationTest extends LogTestCase
         $ac->setAccessible(true);
         $ic = $this->class->getProperty('intConfig');
         $ic->setAccessible(true);
+        $hd = $this->class->getProperty('homeDir');
+        $hd->setAccessible(true);
 
         /* test with no config */
         $app = new SymfonyApplication($this->loader);
@@ -160,7 +182,7 @@ class ApplicationTest extends LogTestCase
         $this->assertDebugLogEmpty();
 
         /* setup a config  */
-        $_SERVER['PWD'] = $this->root->url();
+        $hd->setValue($app, $this->root->url());
         $configFile = $this->root->url().DIRECTORY_SEPARATOR.".application-config.yml";
 
         /* test with correct config */
@@ -174,23 +196,8 @@ class ApplicationTest extends LogTestCase
         $this->assertNoMoreProdMessages();
         $this->assertDebugLogEmpty();
 
-        $this->assertEquals($configFile, $config->get(CONF::RUNTIME_INT_CONFIG));
         $this->assertEquals('test_app', $config->get(CONF::APPLICATION_NAME));
         $this->assertEquals('0.99.0', $config->get(CONF::APPLICATION_VERSION));
-
-        /* setup a bad config and test with it */
-        $app = new SymfonyApplication($this->loader);
-        $this->initLogger($app, ['setupApplicationConfig']);
-
-        $contents  = "dgfip_si1:\n  application:\n    name: test_app\n";
-        $contents .= "  global_options:\n    test_opt:\n      short_option: FOO\n";
-        file_put_contents($configFile, $contents);
-        $ac->invokeArgs($app, []);
-        /** @var ConfigInterface $config */
-        $config = $ic->getValue($app);
-        $this->assertNull($config->get('dgfip_si1.runtime.config_file'));
-        $this->assertWarningInLog('Error loading configuration');
-        $this->assertDebugInLog("No default configuration loaded");
     }
     /**
      * @return array<string,mixed>
@@ -223,12 +230,14 @@ class ApplicationTest extends LogTestCase
         $ac->setAccessible(true);
         $ic = $this->class->getProperty('intConfig');
         $ic->setAccessible(true);
-
-        /* setup a config  */
-        $_SERVER['PWD'] = $this->root->url();
-        $configFile = $this->root->url().DIRECTORY_SEPARATOR.".application-config.yml";
+        $hd = $this->class->getProperty('homeDir');
+        $hd->setAccessible(true);
 
         $app = new SymfonyApplication($this->loader, ['./test', 'hello', '-q']);
+        /* setup a config  */
+        $hd->setValue($app, $this->root->url());
+        $configFile = $this->root->url().DIRECTORY_SEPARATOR.".application-config.yml";
+
         $this->logger = new TestLogger();
         $app->setLogger($this->logger);
         file_put_contents($configFile, $contents);
@@ -291,8 +300,14 @@ class ApplicationTest extends LogTestCase
     /**
      *  test getters
      *
+     * @covers \DgfipSI1\Application\SymfonyApplication::__construct
      * @covers \DgfipSI1\Application\SymfonyApplication::getCommand
      * @covers \DgfipSI1\Application\SymfonyApplication::getCmdName
+     * @covers \DgfipSI1\Application\SymfonyApplication::getEntryPoint
+     * @covers \DgfipSI1\Application\SymfonyApplication::getHomeDir
+     * @covers \DgfipSI1\Application\SymfonyApplication::getCurrentDir
+     * @covers \DgfipSI1\Application\SymfonyApplication::getPharRoot
+     * @covers \DgfipSI1\Application\SymfonyApplication::getPharExcludes
      *
      */
     public function testGetters(): void
@@ -301,9 +316,15 @@ class ApplicationTest extends LogTestCase
         $cmd = new HelloWorldCommand();
         $app->add($cmd);
         $def = $app->getContainer()->addShared(HelloWorldCommand::class);
-        $def->addTag("".$cmd->getName());
+        $def->addTag((string) $cmd->getName());
 
         $this->assertEquals('hello', $app->getCmdName());
+        $this->assertEquals('./test', $app->getEntryPoint());
+        $this->assertEquals(getcwd(), $app->getHomeDir());
+        $this->assertEquals(getcwd(), $app->getCurrentDir());
+        $this->assertEquals(false, $app->getPharRoot());
+        $this->assertEquals([], $app->getPharExcludes());
+
         $found = $app->getCommand((string) $cmd->getName());
         $this->assertTrue($found::class === HelloWorldCommand::class);
         $msg = '';

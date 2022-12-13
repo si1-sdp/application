@@ -74,7 +74,7 @@ class RoboApplication extends AbstractApplication
         // set application's name and version
         $this->setApplicationNameAndVersion();
         $this->configureContainer();
-        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig);
+        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig, $this->homeDir);
         /** @var ClassDiscoverer $disc */
         $disc = $this->getContainer()->get('class_discoverer');
         $namespace = $this->getNameSpace(self::COMMAND_TAG);

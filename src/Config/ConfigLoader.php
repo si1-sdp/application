@@ -67,14 +67,11 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         $configDepth = $config->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
         /** @var bool $configSortByName */
         $configSortByName      = $config->get(CONF::CONFIG_SORT_BY_NAME);
-        /** @var string $root */
-        $root                  = $config->get(CONF::RUNTIME_ROOT_DIRECTORY);
         $this->configDir       = $dir;
         $this->namePatterns    = $configNamePatterns;
         $this->pathPatterns    = $configPathPatterns;
         $this->depth           = $configDepth;
         $this->sortByName      = $configSortByName;
-        $this->appRoot         = $root;
     }
     /**
      * Loads all configuration files
@@ -162,24 +159,36 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         $askedConfig = true;
         if (null === $this->configDir) {
             $askedConfig = false;
-            $dir = $this->appRoot ?? realpath($_SERVER['PWD']);
+            $configDir = '.';
         } else {
-            $dir = $this->configDir;
+            $configDir = $this->configDir;
         }
-        /** @var string $dir */
-        if (!is_dir($dir)) {
-            if (true === $askedConfig) {
-                throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $dir));
+        $dirs = [];
+        $app = $this->getConfiguredApplication();
+        // relative path ? try under every possible root directory
+        if (substr($configDir, 0, 1) !== '/' && strpos($configDir, '://') === false) {
+            foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
+                $fullDir = $dir.DIRECTORY_SEPARATOR.$configDir;
+                if ($dir && is_dir($fullDir) && !in_array($fullDir, $dirs)) {
+                    $dirs[] = $dir.DIRECTORY_SEPARATOR.$configDir;
+                }
             }
+        // absolute path, just make sure we're an array
         } else {
-            $logCtx['paths'] = "[".($this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
-            $logCtx['names'] = "[".($this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
-            $logCtx['sort']  = $this->sortByName ? 'name' : 'path';
-            $logCtx['depth'] = $this->depth;
-            $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
-            $this->getLogger()->debug($msg, $logCtx);
-            $config->findConfigFiles($dir, $this->pathPatterns, $this->namePatterns, $this->sortByName, $this->depth);
+            if (is_dir($configDir)) {
+                $dirs = [$configDir];
+            }
         }
+        if (empty($dirs) && true === $askedConfig) {
+            throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $configDir));
+        }
+        $logCtx['paths'] = "[".($this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
+        $logCtx['names'] = "[".($this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
+        $logCtx['sort']  = $this->sortByName ? 'name' : 'path';
+        $logCtx['depth'] = $this->depth;
+        $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
+        $this->getLogger()->debug($msg, $logCtx);
+        $config->findConfigFiles($dirs, $this->pathPatterns, $this->namePatterns, $this->sortByName, $this->depth);
     }
     /**
      * add config files specified in --add-config

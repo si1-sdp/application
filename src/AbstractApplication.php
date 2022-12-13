@@ -19,6 +19,7 @@ use DgfipSI1\Application\Utils\ClassDiscoverer;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use League\Container\Container;
 use League\Container\ContainerAwareTrait;
+use Phar;
 use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as SymfoApp;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -47,6 +48,12 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
 
     /** @var string $entryPoint */
     protected $entryPoint;
+    /** @var string $pharRoot */
+    protected $pharRoot;
+    /** @var string $homeDir */
+    protected $homeDir;
+    /** @var string $currentDir */
+    protected $currentDir;
     /** @var string $appName */
     protected $appName;
     /** @var string $appVersion */
@@ -72,12 +79,18 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     public function __construct($classLoader, $argv = [])
     {
         parent::__construct();
-
-        // initialize input and output
-        $this->entryPoint = '';
+        // initialize directories
         if (!empty($argv)) {
             $this->entryPoint = $argv[0];
+            $this->homeDir    = (string) realpath(dirname($argv[0]));
+        } else {
+            $this->entryPoint = '';
+            $this->homeDir    = (string) realpath(__DIR__.str_repeat(DIRECTORY_SEPARATOR.'..', 4));
         }
+        $this->currentDir = (string) getcwd();
+        $this->pharRoot = Phar::running(true);
+
+        // initialize input and output
         $this->input  = new ArgvInput($argv);
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
         $this->output->setVerbosity(ApplicationLogger::getVerbosity($this->input));
@@ -171,6 +184,46 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     {
         return $this->entryPoint;
     }
+    /**
+     * gets the home directory (directory where entrypoint is located)
+     *
+     * @return string
+     */
+    public function getHomeDir()
+    {
+        return $this->homeDir;
+    }
+    /**
+     * gets the current directory
+     *
+     * @return string
+     */
+    public function getCurrentDir()
+    {
+        return $this->currentDir;
+    }
+    /**
+     * gets the current directory
+     *
+     * @return string
+     */
+    public function getPharRoot()
+    {
+        return $this->pharRoot;
+    }
+    /**
+     * gets phar exclusions
+     *
+     * @return array<string>
+     */
+    public function getPharExcludes()
+    {
+        /** @var array<string> $pharExludes */
+        $pharExludes = $this->intConfig->get(CONF::PHAR_EXCLUDES) ?? [];
+
+        return $pharExludes;
+    }
+
     /**
      * Adds a mapped option to application configuration
      *
@@ -269,14 +322,20 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $internalConfSchema = new ApplicationSchema();
         $this->intConfig    = new ConfigHelper($internalConfSchema);
         $defaultConfigFiles = [
-            __DIR__.DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
-            $_SERVER['PWD'].DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
-            getcwd().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $this->getPharRoot().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $this->getHomeDir().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $this->getCurrentDir().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
         ];
         $logContext = [ 'name' => 'new Application()' ];
+        $loaded = false;
         foreach ($defaultConfigFiles as $file) {
             $logContext['file'] = $file;
             if (file_exists($file)) {
+                if (str_starts_with($file, 'phar://')) {
+                    $root = dirname($file);
+                } else {
+                    $root = realpath(dirname($file));
+                }
                 $this->intConfig->addFile(ConfigOverlay::DEFAULT_CONTEXT, $file);
                 try {
                     $this->intConfig->build();
@@ -286,13 +345,11 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
                     break;
                 }
                 $this->getLogger()->debug("Configuration file {file} loaded.", $logContext);
-                $this->intConfig->setDefault(CONF::RUNTIME_INT_CONFIG, $file);
-                $this->intConfig->setDefault(CONF::RUNTIME_ROOT_DIRECTORY, realpath(dirname($file)));
-
+                $loaded = true;
                 break;
             }
         }
-        if (!$this->intConfig->get(CONF::RUNTIME_INT_CONFIG)) {
+        if (false === $loaded) {
             $this->getLogger()->debug("No default configuration loaded", $logContext);
         }
     }

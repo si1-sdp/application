@@ -143,14 +143,14 @@ class ApplicationLoggerTest extends LogTestCase
          */
         $msg = '';
         try {
-            ApplicationLogger::configureLogger($logger, $conf);
+            ApplicationLogger::configureLogger($logger, $conf, (string) getcwd());
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
         if ($throwException) {
             $this->assertNotEmpty($msg, $msg);
         } else {
-            $this->assertEmpty($msg);
+            $this->assertEmpty($msg, $msg);
             /** @var array<\Monolog\Handler\HandlerInterface> $handlers */
             $handlers = $logger->getHandlers();
             if (null === $filename) {
@@ -194,7 +194,7 @@ class ApplicationLoggerTest extends LogTestCase
     {
         $logger = new TestLogger();
         $this->logger = $logger;
-        ApplicationLogger::configureLogger($logger, new ConfigHelper());
+        ApplicationLogger::configureLogger($logger, new ConfigHelper(), (string) getcwd());
         $this->assertAlertInLog('Advanced logger configuration applies only to Monolog');
         $this->assertLogEmpty();
     }
