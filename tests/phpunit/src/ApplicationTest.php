@@ -140,25 +140,7 @@ class ApplicationTest extends LogTestCase
         $config = $configProp->getValue($app);
         $this->assertInstanceOf('DgfipSI1\ConfigHelper\ConfigHelper', $config);
     }
-   /**
-     * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
-     * @covers DgfipSI1\Application\ApplicationSchema
-     */
-    public function testSetupApplicationPharConfig(): void
-    {
-        /* make setupApplicationConfig available */
-        $ac = $this->class->getMethod('setupApplicationConfig');
-        $ac->setAccessible(true);
-        $ic = $this->class->getProperty('intConfig');
-        $ic->setAccessible(true);
-        $pr = $this->class->getProperty('pharRoot');
-        $pr->setAccessible(true);
 
-        $app = new SymfonyApplication($this->loader, ['./test']);
-        $phar = 'phar://'.realpath(__DIR__.'/../../data/config/test.phar');
-        $pr->setValue($app, $phar);
-        $ac->invoke($app);
-    }
     /**
      * @covers DgfipSI1\Application\SymfonyApplication::setupApplicationConfig
      * @covers DgfipSI1\Application\ApplicationSchema

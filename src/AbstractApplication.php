@@ -6,7 +6,6 @@ namespace DgfipSI1\Application;
 
 use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
-use Consolidation\Log\Logger;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\BaseSchema;
 use DgfipSI1\Application\Config\MappedOption;
@@ -20,12 +19,10 @@ use DgfipSI1\ConfigHelper\ConfigHelper;
 use League\Container\Container;
 use League\Container\ContainerAwareTrait;
 use Phar;
-use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as SymfoApp;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\Output;
-use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * class Application
@@ -331,11 +328,6 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         foreach ($defaultConfigFiles as $file) {
             $logContext['file'] = $file;
             if (file_exists($file)) {
-                if (str_starts_with($file, 'phar://')) {
-                    $root = dirname($file);
-                } else {
-                    $root = realpath(dirname($file));
-                }
                 $this->intConfig->addFile(ConfigOverlay::DEFAULT_CONTEXT, $file);
                 try {
                     $this->intConfig->build();

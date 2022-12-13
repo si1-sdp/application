@@ -278,6 +278,7 @@ class ConfigLoaderTest extends LogTestCase
     /**
      * loadConfigFiles
      * @covers \DgfipSI1\Application\Config\ConfigLoader::loadConfigFiles
+     * @covers \DgfipSI1\Application\Config\ConfigLoader::getDirectories
      */
     public function testLoadConfigFiles(): void
     {

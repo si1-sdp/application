@@ -7,6 +7,7 @@ namespace DgfipSI1\Application\Config;
 use Consolidation\Config\ConfigInterface;
 use Consolidation\Config\Util\ConfigOverlay;
 use DgfipSI1\Application\AbstractApplication;
+use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Exception\ConfigFileNotFoundException;
 use DgfipSI1\ConfigHelper\ConfigHelper;
@@ -159,28 +160,13 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         $askedConfig = true;
         if (null === $this->configDir) {
             $askedConfig = false;
-            $configDir = '.';
+            $rootDirectory = '.';
         } else {
-            $configDir = $this->configDir;
+            $rootDirectory = $this->configDir;
         }
-        $dirs = [];
-        $app = $this->getConfiguredApplication();
-        // relative path ? try under every possible root directory
-        if (substr($configDir, 0, 1) !== '/' && strpos($configDir, '://') === false) {
-            foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
-                $fullDir = $dir.DIRECTORY_SEPARATOR.$configDir;
-                if ($dir && is_dir($fullDir) && !in_array($fullDir, $dirs)) {
-                    $dirs[] = $dir.DIRECTORY_SEPARATOR.$configDir;
-                }
-            }
-        // absolute path, just make sure we're an array
-        } else {
-            if (is_dir($configDir)) {
-                $dirs = [$configDir];
-            }
-        }
+        $dirs = $this->getDirectories($rootDirectory, $this->getConfiguredApplication());
         if (empty($dirs) && true === $askedConfig) {
-            throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $configDir));
+            throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $rootDirectory));
         }
         $logCtx['paths'] = "[".($this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
         $logCtx['names'] = "[".($this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
@@ -189,6 +175,34 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
         $this->getLogger()->debug($msg, $logCtx);
         $config->findConfigFiles($dirs, $this->pathPatterns, $this->namePatterns, $this->sortByName, $this->depth);
+    }
+    /**
+     * Get config directory candidates
+     *
+     * @param string               $configDir
+     * @param ApplicationInterface $app
+     *
+     * @return array<string>
+     */
+    protected function getDirectories($configDir, $app)
+    {
+        $directories = [];
+        // relative path ? try under every possible root directory
+        if (substr($configDir, 0, 1) !== '/' && strpos($configDir, '://') === false) {
+            foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
+                $fullDir = $dir.DIRECTORY_SEPARATOR.$configDir;
+                if ($dir && is_dir($fullDir) && !in_array($fullDir, $directories)) {
+                    $directories[] = $dir.DIRECTORY_SEPARATOR.$configDir;
+                }
+            }
+        // absolute path, just make sure we're an array
+        } else {
+            if (is_dir($configDir)) {
+                $directories = [$configDir];
+            }
+        }
+
+        return $directories;
     }
     /**
      * add config files specified in --add-config

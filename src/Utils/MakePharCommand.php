@@ -93,7 +93,7 @@ EOH
         if ($this->pharReadonly()) {
             $msg = "Creating phar disabled by the php.ini setting 'phar.readonly'. Try this :\n";
             $msg .= "   php -d phar.readonly=0 $entryPoint make-phar\n";
-            throw new \Exception("$msg");
+            throw new RuntimeException("$msg");
         }
         $this->composerRun(['install', '--no-dev']);
         $this->makePhar($pharFile, $entryPoint, $excludes);
@@ -140,8 +140,6 @@ EOH
         $filter = function ($file, $key, $iterator) use ($excludes, $directory) {
             foreach ($excludes as $excludefilename) {
                 if (strcmp($directory.DIRECTORY_SEPARATOR.$excludefilename, $file) === 0) {
-                    //print "Excluding $file\n";
-
                     return false;
                 }
             }
@@ -149,9 +147,8 @@ EOH
             return true;
         };
         $innerIterator = new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS);
-        $iterator = new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator($innerIterator, $filter));
 
-        return $iterator;
+        return new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator($innerIterator, $filter));
     }
     /**
      * make phar
@@ -173,26 +170,22 @@ EOH
         $this->getLogger()->notice("Creating phar : {file}", $this->logCtx);
         $phar = $this->initPhar($pharFile);
         if (null !== $phar) {
-            try {
-                // start buffering. Mandatory to modify stub to add shebang
-                $phar->startBuffering();
-                // Create the default stub from main.php entrypoint
-                $defaultStub = $phar->createDefaultStub(basename($entryPoint));
-                $phar->buildFromIterator($this->getIterator($excludes, $directory), $directory);
-                // Customize the stub to add the shebang
-                $stub = "#!/usr/bin/env php\n".$defaultStub;
-                // Add the stub
-                $phar->setStub($stub);
-                $phar->stopBuffering();
-                // plus - compressing it into gzip
-                $phar->compressFiles(Phar::GZ);
-                // Make the file executable
-                chmod($fullName, 0770);
-                if (!file_exists($fullName)) {
-                    throw new RuntimeException("Phar file wasn't created");
-                }
-            } catch (\Exception $e) {
-                throw $e;
+            // start buffering. Mandatory to modify stub to add shebang
+            $phar->startBuffering();
+            // Create the default stub from main.php entrypoint
+            $defaultStub = $phar->createDefaultStub(basename($entryPoint));
+            $phar->buildFromIterator($this->getIterator($excludes, $directory), $directory);
+            // Customize the stub to add the shebang
+            $stub = "#!/usr/bin/env php\n".$defaultStub;
+            // Add the stub
+            $phar->setStub($stub);
+            $phar->stopBuffering();
+            // plus - compressing it into gzip
+            $phar->compressFiles(Phar::GZ);
+            // Make the file executable
+            chmod($fullName, 0770);
+            if (!file_exists($fullName)) {
+                throw new RuntimeException("Phar file wasn't created");
             }
         }
     }
