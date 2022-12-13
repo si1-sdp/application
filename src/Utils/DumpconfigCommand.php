@@ -12,7 +12,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'dumpconfig', description: 'Configuration dumper')]
+#[AsCommand(name: 'dump-config', description: 'Configuration dumper')]
 /**
  * Config dumper command
  */
