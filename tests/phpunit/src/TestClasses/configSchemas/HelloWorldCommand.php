@@ -58,7 +58,7 @@ class HelloWorldCommand extends Command
         /** @var string $user */
         $user = $this->config->get("options.user");
         $text = "hello $user";
-        if ($this->config->get("commands.hello.options.yell")) {
+        if (true === $this->config->get("commands.hello.options.yell")) {
             $text = strtoupper($text);
         }
         $output->writeln($text);

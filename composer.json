@@ -1,40 +1,54 @@
 {
-  "name" : "dgfip-si1/application",
-  "description" : "Provides a container to command line applications.",
-  "type" : "library",
-  "license" : "GPL-3.0-or-later",
+  "name": "dgfip-si1/application",
+  "description": "Provides a container to command line applications.",
+  "license": "GPL-3.0-or-later",
+  "type": "library",
+  "keywords": [
+    "command",
+    "config"
+  ],
   "authors": [
     {
-      "name" : "Jean-Marie Gervais"
+      "name": "Jean-Marie Gervais"
     },
     {
-      "name" : "Mikael Meulle"
+      "name": "Mikael Meulle"
     }
-
   ],
-  "keywords" : [ "command", "config" ],
-  "require" : {
-    "php" : ">=8.1",
-    "composer/composer" : "^2, >=2.4",
-    "consolidation/robo" : "^4.0",
-    "league/container" : "^4.0, >=4.2",
-    "dgfip-si1/config-helper": "^1.0, >=1.0.alpha10",
-    "monolog/monolog" : "^3.2",
-    "symfony/console" : "^6"
-  },	
+  "require": {
+    "php": ">=8.1",
+    "composer/composer": "^2,>=2.4",
+    "consolidation/robo": "^4.0",
+    "dgfip-si1/config-helper": "^1.0,>=1.0.alpha10",
+    "league/container": "^4.0,>=4.2",
+    "monolog/monolog": "^3.2",
+    "symfony/console": "^6"
+  },
   "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^0.7.2",
     "dgfip-si1/test-logger": ">= 1.0.alpha12",
-    "escapestudios/symfony2-coding-standard": "^3.12",
-    "mikey179/vfsstream": "^1.6, >=1.6.10",
+    "ergebnis/composer-normalize": "^2.28",
+    "escapestudios/symfony2-coding-standard": "^3.x-dev",
+    "infection/infection": "^0.26.6",
+    "mikey179/vfsstream": "^1.6,>=1.6.10",
     "mockery/mockery": "^1.5",
+    "php-parallel-lint/php-parallel-lint": "^1.3",
+    "phpcompatibility/php-compatibility": "^9.3",
+    "phpmetrics/phpmetrics": "^2.8",
+    "phpro/grumphp-shim": "^1.13",
+    "phpstan/extension-installer": "^1.1",
     "phpstan/phpstan": "^1",
+    "phpstan/phpstan-deprecation-rules": "^1.0",
+    "phpstan/phpstan-mockery": "^1",
+    "phpstan/phpstan-strict-rules": "^1.4",
     "phpstan/phpstan-symfony": "*",
-    "phpunit/phpunit": "^9.5, >=9.5.26",
-    "phpunit/php-code-coverage": "^9.2, >=9.2.19",
+    "phpunit/phpunit": "^9.5,>=9.5.26",
+    "roave/security-advisories": "dev-latest",
+    "slevomat/coding-standard": "^8.4",
     "squizlabs/php_codesniffer": "^3.6"
   },
-  "minimum-stability" : "alpha",
-  "prefer-stable" : true,
+  "minimum-stability": "alpha",
+  "prefer-stable": true,
   "autoload": {
     "psr-4": {
       "DgfipSI1\\Application\\": "src/"
@@ -45,9 +59,43 @@
       "DgfipSI1\\ApplicationTests\\": "tests/phpunit/src"
     }
   },
+  "config": {
+    "allow-plugins": {
+      "infection/extension-installer": true,
+      "phpro/grumphp-shim": true,
+      "ergebnis/composer-normalize": true,
+      "phpstan/extension-installer": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
   "scripts": {
+    "all": "grumphp run",
+    "c": "rm -r tests/tmp/*/* &> /dev/null || true",
+    "coverage": "firefox $(pwd)/tests/results/html-coverage/index.html",
+    "infection": "infection --threads=max && firefox $(pwd)/tests/results/infection.html",
+    "lint": "parallel-lint --no-progress bin/composer-stage src tests",
+    "phpcbf": "phpcbf",
+    "phpcs": "vendor/bin/phpcs --report=junit",
+    "phpmetrics": "phpmetrics --junit=tests/results/tests-phpunit.xml --report-html=tests/results/phpmetrics src && firefox $(pwd)/tests/results/phpmetrics/index.html",
+    "phpstan": "vendor/bin/phpstan analyse --no-progress --error-format=junit",
     "phpunit": "vendor/bin/phpunit --log-junit tests/results/phpunit.xml",
-    "phpstan": "XDEBUG_MODE=off php -d memory_limit=512M vendor/bin/phpstan analyse --no-progress --error-format=junit",
-    "phpcs": "vendor/bin/phpcs --report=junit"
+    "security": "@composer update --dry-run roave/security-advisories",
+    "static": "grumphp run --testsuite=static",
+    "test": "grumphp run --testsuite=test"
+  },
+  "scripts-descriptions": {
+    "all": "Runs all automated tests and static analysis tools.",
+    "c": "Clears the script caches in the \"var\" directory.",
+    "coverage": "Opens html test coverage.",
+    "infection": "Runs PHP mutation tests.",
+    "lint": "Lints PHP files.",
+    "phpcbf": "Automatically fixes standards violations where possible.",
+    "phpcs": "Checks code for standards compliance.",
+    "phpmetrics": "Provides various metrics about PHP projects.",
+    "phpstan": "Analyzes code to find bugs.",
+    "phpunit": "Runs PHPUnit tests.",
+    "security": "Checks installed dependencies for known security vulnerabilities.",
+    "static": "Runs all static analysis tools.",
+    "test": "Runs automated tests."
   }
 }

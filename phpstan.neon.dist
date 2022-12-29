@@ -5,10 +5,3 @@ parameters:
   paths:
     - src
     - tests/phpunit/src
-  ignoreErrors:
-    -
-      message: '#Call to an undefined method .*(children|addDefaultsIfNotSet|arrayPrototype)#'
-      paths: 
-        - src/ApplicationSchema.php
-        - src/Config/BaseSchema.php
-        - tests/phpunit/src/TestClasses/configSchemas/*

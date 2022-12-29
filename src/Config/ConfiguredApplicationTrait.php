@@ -52,7 +52,7 @@ trait ConfiguredApplicationTrait
             } elseif ($mappedOption->isBool()) {
                 $node = $children->booleanNode($mappedOption->getName());
             } elseif ($mappedOption->isArgument()) {
-                $node = $children->ScalarNode($mappedOption->getName());
+                $node = $children->scalarNode($mappedOption->getName());
             }
             if (null !== $node) {
                 $node->info($mappedOption->getDescription());
@@ -104,7 +104,7 @@ trait ConfiguredApplicationTrait
      */
     public function getConfiguredApplication(): ApplicationInterface
     {
-        if (null !== $this->getContainer() && $this->getContainer()->has('application')) {
+        if ($this->getContainer()->has('application')) {
             $application = $this->getContainer()->get('application');
             if ($application instanceof ApplicationInterface) {
                 /** @var  ApplicationInterface $application */

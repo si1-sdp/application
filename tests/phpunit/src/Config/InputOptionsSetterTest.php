@@ -37,6 +37,7 @@ use Symfony\Component\Console\Input\InputDefinition;
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
+ * @uses DgfipSI1\Application\Utils\MakePharCommand
  */
 class InputOptionsSetterTest extends LogTestCase
 {
@@ -51,7 +52,7 @@ class InputOptionsSetterTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
         $this->class = new ReflectionClass(InputOptionsSetter::class);
         $this->commandOptions['hello'] = ['options' => [
@@ -83,22 +84,22 @@ class InputOptionsSetterTest extends LogTestCase
         $input = new ArgvInput([]);
         $setter->getContainer()->addShared('input', $input);
 
-        $this->assertFalse($appDef->hasOption('config'));      // tech opt
-        $this->assertFalse($appDef->hasOption('configAware')); // glob opt from getConfigOptions
-        $this->assertFalse($appDef->hasOption('test-b'));      // glob opt from config
-        $this->assertFalse($cmdDef->hasOption('test-a'));      // cmd opt from getConfigOptions
-        $this->assertFalse($cmdDef->hasOption('test-b'));      // cmd opt from config
+        self::assertFalse($appDef->hasOption('config'));      // tech opt
+        self::assertFalse($appDef->hasOption('configAware')); // glob opt from getConfigOptions
+        self::assertFalse($appDef->hasOption('test-b'));      // glob opt from config
+        self::assertFalse($cmdDef->hasOption('test-a'));      // cmd opt from getConfigOptions
+        self::assertFalse($cmdDef->hasOption('test-b'));      // cmd opt from config
 
         $config = new ConfigHelper();
         $config->addArray('global', [ 'dgfip_si1' => [ 'global_options'  => $this->globalOptions  ]]);
         $config->addArray('command', [ 'dgfip_si1' => [ 'command_options' => $this->commandOptions ]]);
 
         $setter->setInputOptions($config);
-        $this->assertTrue($appDef->hasOption('config'));      // tech opt
-        $this->assertTrue($appDef->hasOption('configAware')); // glob opt from getConfigOptions
-        $this->assertTrue($appDef->hasOption('test-b'));      // glob opt from config
-        $this->assertTrue($cmdDef->hasOption('test-a'));      // cmd opt from getConfigOptions
-        $this->assertTrue($cmdDef->hasOption('test-b'));      // cmd opt from config
+        self::assertTrue($appDef->hasOption('config'));      // tech opt
+        self::assertTrue($appDef->hasOption('configAware')); // glob opt from getConfigOptions
+        self::assertTrue($appDef->hasOption('test-b'));      // glob opt from config
+        self::assertTrue($cmdDef->hasOption('test-a'));      // cmd opt from getConfigOptions
+        self::assertTrue($cmdDef->hasOption('test-b'));      // cmd opt from config
     }
     /**
      * test setupTechnicalOptions
@@ -117,13 +118,13 @@ class InputOptionsSetterTest extends LogTestCase
         $def = $app->getDefinition();
 
         $input = new ArgvInput([ './test']);
-        $this->assertFalse($def->hasOption('config'));
-        $this->assertFalse($def->hasOption('add-config'));
-        $this->assertFalse($def->hasOption('define'));
+        self::assertFalse($def->hasOption('config'));
+        self::assertFalse($def->hasOption('add-config'));
+        self::assertFalse($def->hasOption('define'));
         $method->invokeArgs($setter, [ $input]);
-        $this->assertTrue($def->hasOption('config'));
-        $this->assertTrue($def->hasOption('add-config'));
-        $this->assertTrue($def->hasOption('define'));
+        self::assertTrue($def->hasOption('config'));
+        self::assertTrue($def->hasOption('add-config'));
+        self::assertTrue($def->hasOption('define'));
     }
     /**
      * test setupGlobalOptions
@@ -154,9 +155,9 @@ class InputOptionsSetterTest extends LogTestCase
         /** @var SymfonyApplication $app */
         $app = $setter->getConfiguredApplication();
         $def = $app->getDefinition();
-        $this->assertTrue($def->hasOption('test-b'));
-        $this->assertTrue($def->hasOption('test-s'));
-        $this->assertTrue($def->hasOption('configAware'));  // from ApplicationAware
+        self::assertTrue($def->hasOption('test-b'));
+        self::assertTrue($def->hasOption('test-s'));
+        self::assertTrue($def->hasOption('configAware'));  // from ApplicationAware
     }
 
     /**
@@ -187,10 +188,10 @@ class InputOptionsSetterTest extends LogTestCase
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
-        $this->assertEquals(3, count($def->getOptions()));
-        $this->assertTrue($def->hasOption('test-b'));
-        $this->assertTrue($def->hasOption('test-s'));
-        $this->assertTrue($def->hasOption('test-a'));  // from ApplicationAware
+        self::assertEquals(3, count($def->getOptions()));
+        self::assertTrue($def->hasOption('test-b'));
+        self::assertTrue($def->hasOption('test-s'));
+        self::assertTrue($def->hasOption('test-a'));  // from ApplicationAware
 
         // test with help command
         $setter = $this->createSetter();
@@ -200,10 +201,10 @@ class InputOptionsSetterTest extends LogTestCase
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
-        $this->assertEquals(3, count($def->getOptions()));
-        $this->assertTrue($def->hasOption('test-b'));
-        $this->assertTrue($def->hasOption('test-s'));
-        $this->assertTrue($def->hasOption('test-a'));  // from ApplicationAware
+        self::assertEquals(3, count($def->getOptions()));
+        self::assertTrue($def->hasOption('test-b'));
+        self::assertTrue($def->hasOption('test-s'));
+        self::assertTrue($def->hasOption('test-a'));  // from ApplicationAware
 
         // test with unknown command
         $setter = $this->createSetter();
@@ -213,7 +214,7 @@ class InputOptionsSetterTest extends LogTestCase
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
-        $this->assertEquals(0, count($def->getOptions()));
+        self::assertEquals(0, count($def->getOptions()));
 
         // test with bind exception
         $setter = $this->createSetter();
@@ -225,7 +226,7 @@ class InputOptionsSetterTest extends LogTestCase
         /** @var ApplicationCommand $command */
         $command = $setter->getContainer()->get(HelloWorldCommand::class);
         $def = $command->getDefinition();
-        $this->assertEquals(2, count($def->getOptions()));
+        self::assertEquals(2, count($def->getOptions()));
 
         // see that we skip completely if not symfonyCommand
         $setter->getContainer()->extend('application')->setAlias('oldApp');

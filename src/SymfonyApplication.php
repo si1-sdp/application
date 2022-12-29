@@ -44,16 +44,16 @@ class SymfonyApplication extends AbstractApplication
         foreach ($cClasses as $command) {
             /** @var Command $command */
             $this->add($command);
-            $logCtx = ['name' => 'findCommand', 'cmd' => $command->getName()];
+            $logCtx = ['name' => 'registerCommands', 'cmd' => $command->getName()];
             $this->getLogger()->info("command {cmd} registered", $logCtx);
         }
         $this->getContainer()->addShared(DumpconfigCommand::class)->addTag(self::COMMAND_TAG)->addTag('dump-config');
-        $this->getContainer()->addShared(MakePharCommand::class)->addTag(self::COMMAND_TAG)->addTag('make-phar');
         /** @var Command $cmd */
         $cmd = $this->getContainer()->get(DumpconfigCommand::class);
         $this->add($cmd);
         // have make-phar command available only if we're not in a phar
-        if (!$this->pharRoot) {
+        if ('' === $this->pharRoot) {
+            $this->getContainer()->addShared(MakePharCommand::class)->addTag(self::COMMAND_TAG)->addTag('make-phar');
             /** @var Command $cmd */
             $cmd = $this->getContainer()->get(MakePharCommand::class);
             $this->add($cmd);
@@ -69,7 +69,6 @@ class SymfonyApplication extends AbstractApplication
     public function getCommand($cmdName)
     {
         if ($this->getContainer()->has($cmdName)) {
-            /** @var array<ApplicationCommand> $results */
             $results = $this->getContainer()->get($cmdName);
             if (is_array($results) && count($results) === 1) {
                 return array_shift($results);
@@ -111,27 +110,24 @@ class SymfonyApplication extends AbstractApplication
     {
         // set application's name and version
         $this->setApplicationNameAndVersion();
+        // configure container.
+        $this->configureContainer();
+        // configure application logger
+        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig, $this->homeDir);
+
+        // Discover commands
         /** @var string $namespace */
         $namespace = $this->getNamespace();
-        // Create and configure container.
-        $this->configureContainer();
-
-        ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig, $this->homeDir);
-        /** @var ClassDiscoverer $disc */
-        $disc = $this->getContainer()->get('class_discoverer');
-        $disc->addDiscoverer($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, idAttribute:'name');
-
+        $this->addDiscoveries($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, [], 'name');
         // Discover configurator classes
         $appClass = ConfiguredApplicationInterface::class;
         $cmdClass = ApplicationCommand::class;
-        $disc->addDiscoverer($namespace, self::COMMAND_CONFIG_TAG, [ $appClass, $cmdClass ], idAttribute:'name');
-        $disc->addDiscoverer($namespace, self::GLOBAL_CONFIG_TAG, [ $appClass ], excludeDeps: [ $cmdClass ]);
-
+        $this->addDiscoveries($namespace, self::COMMAND_CONFIG_TAG, $cmdClass, [], 'name');
+        $this->addDiscoveries($namespace, self::GLOBAL_CONFIG_TAG, $appClass, $cmdClass);
         // Discover event listeners
-        $disc->addDiscoverer($namespace, self::EVENT_LISTENER_TAG, [ EventSubscriberInterface::class]);
-
+        $this->addDiscoveries($namespace, self::EVENT_LISTENER_TAG, [ EventSubscriberInterface::class]);
         // launch discoverer
-        $disc->discoverAllClasses();
+        $this->discoverClasses();
 
         // register discovered command classes
         $this->registerCommands();
@@ -176,8 +172,6 @@ class SymfonyApplication extends AbstractApplication
         $this->getContainer()->addShared('eventDispatcher', \Symfony\Component\EventDispatcher\EventDispatcher::class)
             ->addMethodCall('addSubscriber', ['configuration_loader'])       // 100 priority
             ->addMethodCall('addSubscriber', ['input_options_injector']);   // 90 priority
-        $this->setAutoExit(false);
-        // see also applyInflectorsBeforeContainerConfiguration to have this done to objects before bootstrap...
         $this->getContainer()->inflector(ConfigAwareInterface::class)->invokeMethod('setConfig', ['config']);
         $this->getContainer()->inflector(LoggerAwareInterface::class)->invokeMethod('setLogger', ['logger']);
         $this->getContainer()->inflector(ContainerAwareInterface::class)->invokeMethod('setContainer', ['container']);

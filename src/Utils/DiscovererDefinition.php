@@ -57,6 +57,7 @@ class DiscovererDefinition
         if (!is_array($deps)) {
             $deps = [ $deps ];
         }
+        $this->errMessages = [];
         foreach ($deps as $dependency) {
             try {
                 /** @var class-string $dependency */

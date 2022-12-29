@@ -129,7 +129,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
             /** @var string $cmdName */
             $cmdName = $input->getArgument('command_name');
         }
-        if (empty($cmdName) || !$this->getContainer()->has($cmdName)) {
+        if (!$this->getContainer()->has($cmdName)) {
             return;
         }
         $this->getLogger()->info("Adding input options for command '{command}'", $logCtx);
@@ -157,18 +157,15 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
             $key = 'dgfip_si1.command_options.'.$cmdName.'.options';
             $commandOptions = $config->get($key);
             if (is_array($commandOptions)) {
-                foreach ($commandOptions as $key => $options) {
-                    $opt = MappedOption::createFromConfig($key, $options);
+                foreach ($commandOptions as $subkey => $options) {
+                    $opt = MappedOption::createFromConfig($subkey, $options);
                     $opt->setCommand((string) $command->getName());
                     $this->getConfiguredApplication()->addMappedOption($opt);
                 }
             }
-            /** @var \DgfipSI1\Application\Command $command */
-            if ($command instanceof ConfiguredApplicationInterface) {
-                foreach ($command->getConfigOptions() as $opt) {
-                    $opt->setCommand((string) $command->getName());
-                    $this->getConfiguredApplication()->addMappedOption($opt);
-                }
+            foreach ($command->getConfigOptions() as $opt) {
+                $opt->setCommand((string) $command->getName());
+                $this->getConfiguredApplication()->addMappedOption($opt);
             }
         }
     }
@@ -177,7 +174,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      * Scan application configuration and getConfigOptions() for global options
      * Adds every mappedOption returned to application MappedOptions list
      *
-     * @param array<string,mixed> $globalOptions
+     * @param array<string,mixed>|null $globalOptions
      *
      * @return void
      */

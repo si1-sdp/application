@@ -42,6 +42,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Contracts\LoggerAwareTrait
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
+ * @uses DgfipSI1\Application\Utils\MakePharCommand
  */
 class ConfigLoaderTest extends LogTestCase
 {
@@ -67,7 +68,7 @@ class ConfigLoaderTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
         $path = __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..';
         $this->appRoot = (string) realpath($path);
@@ -103,7 +104,7 @@ class ConfigLoaderTest extends LogTestCase
     public function testGetSubscribedEvents()
     {
         $events = ConfigLoader::getSubscribedEvents();
-        $this->assertArrayHasKey(ConsoleEvents::COMMAND, $events);
+        self::assertArrayHasKey(ConsoleEvents::COMMAND, $events);
     }
     /**
      * Test ClassLoader configuration
@@ -122,11 +123,11 @@ class ConfigLoaderTest extends LogTestCase
             CONF::CONFIG_SORT_BY_NAME      => 'sort',
         ];
         $loader = $this->createConfigLoader(config: $testConfig);
-        $this->assertEquals('conf_dir', $this->cd->getValue($loader));
-        $this->assertEquals(['name1', 'name2'], $this->np->getValue($loader));
-        $this->assertEquals(['path1', 'path2'], $this->pp->getValue($loader));
-        $this->assertEquals(-1, $this->de->getValue($loader));
-        $this->assertEquals('sort', $this->sn->getValue($loader));
+        self::assertEquals('conf_dir', $this->cd->getValue($loader));
+        self::assertEquals(['name1', 'name2'], $this->np->getValue($loader));
+        self::assertEquals(['path1', 'path2'], $this->pp->getValue($loader));
+        self::assertEquals(-1, $this->de->getValue($loader));
+        self::assertEquals('sort', $this->sn->getValue($loader));
     }
     /**
      * test loadConfiguration method
@@ -157,7 +158,7 @@ class ConfigLoaderTest extends LogTestCase
         /** @var ConfigHelper $config */
         $config = $loader->getConfig();
         $config->set('foo', 'bar');
-        $this->assertEquals('bar', $config->getContext(ConfigOverlay::PROCESS_CONTEXT)->get('foo'));
+        self::assertEquals('bar', $config->getContext(ConfigOverlay::PROCESS_CONTEXT)->get('foo'));
     }
     /**
      * configureSchemas
@@ -174,7 +175,7 @@ class ConfigLoaderTest extends LogTestCase
         // test1 : with no schema
         $method->invoke($loader);
         $dumpedSchema = "schema:               []\n";
-        $this->assertEquals($dumpedSchema, $config->dumpSchema());
+        self::assertEquals($dumpedSchema, $config->dumpSchema());
 
         // test2 : only global schema
         $loader->getContainer()->addShared(HelloWorldSchema::class)->addTag(AbstractApplication::GLOBAL_CONFIG_TAG);
@@ -182,7 +183,7 @@ class ConfigLoaderTest extends LogTestCase
         $loader->setConfig($config);
         $method->invoke($loader);
         $dumpedSchema = "schema:\n".HelloWorldSchema::DUMPED_SHEMA;
-        $this->assertEquals($dumpedSchema, $config->dumpSchema());
+        self::assertEquals($dumpedSchema, $config->dumpSchema());
 
         // test3 : only command schema
         $loader->setContainer(new Container());
@@ -191,7 +192,7 @@ class ConfigLoaderTest extends LogTestCase
         $loader->setConfig($config);
         $method->invoke($loader);
         $dumpedSchema = "schema:\n".HelloWorldCommand::DUMPED_SHEMA;
-        $this->assertEquals($dumpedSchema, $config->dumpSchema());
+        self::assertEquals($dumpedSchema, $config->dumpSchema());
 
         // test4 : two schemas
         $loader->getContainer()->addShared(HelloWorldSchema::class)->addTag(AbstractApplication::GLOBAL_CONFIG_TAG);
@@ -199,7 +200,7 @@ class ConfigLoaderTest extends LogTestCase
         $loader->setConfig($config);
         $method->invoke($loader);
         $dumpedSchema = "schema:\n".HelloWorldSchema::DUMPED_SHEMA.HelloWorldCommand::DUMPED_SHEMA;
-        $this->assertEquals($dumpedSchema, $config->dumpSchema());
+        self::assertEquals($dumpedSchema, $config->dumpSchema());
     }
     /**
      * loadConfigFromOptions
@@ -216,7 +217,7 @@ class ConfigLoaderTest extends LogTestCase
         // test1 - no config, only returns false
         $argv = ['./tests'];
         $ret = $method->invokeArgs($loader, [$this->createEvent($argv)]);
-        $this->assertFalse($ret);
+        self::assertFalse($ret);
 
         // test2 - config file not found
         $argv = ['./tests', '--config', 'foo'];
@@ -228,7 +229,7 @@ class ConfigLoaderTest extends LogTestCase
         } catch (ConfigFileNotFoundException $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Configuration file 'foo' not found", $msg);
+        self::assertEquals("Configuration file 'foo' not found", $msg);
 
         // test3 - config file exists
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
@@ -236,7 +237,7 @@ class ConfigLoaderTest extends LogTestCase
         $argv = ['./tests', '--config', "$cfgFile"];
         $event = $this->createEvent($argv);
         $ret = $method->invokeArgs($loader, [$event]);
-        $this->assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
+        self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
     }
     /**
      * addConfigFromOptions
@@ -253,7 +254,7 @@ class ConfigLoaderTest extends LogTestCase
         // test1 - no config, only returns false
         $argv = ['./tests'];
         $method->invokeArgs($loader, [$this->createEvent($argv)]);
-        $this->assertEquals('[]', $config->dumpConfig());
+        self::assertEquals('[]', $config->dumpConfig());
 
         // test2 - config file not found
         $argv = ['./tests', '--add-config', 'foo'];
@@ -265,7 +266,7 @@ class ConfigLoaderTest extends LogTestCase
         } catch (ConfigFileNotFoundException $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Configuration file 'foo' not found", $msg);
+        self::assertEquals("Configuration file 'foo' not found", $msg);
 
         // test3 - config file exists
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
@@ -273,7 +274,7 @@ class ConfigLoaderTest extends LogTestCase
         $argv = ['./tests', '--add-config', "$cfgFile"];
         $event = $this->createEvent($argv);
         $method->invokeArgs($loader, [$event]);
-        $this->assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
+        self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
     }
     /**
      * loadConfigFiles
@@ -293,7 +294,7 @@ class ConfigLoaderTest extends LogTestCase
 
         // test1 - no config
         $method->invoke($loader);
-        $this->assertEquals('[]', $config->dumpConfig());
+        self::assertEquals('[]', $config->dumpConfig());
         $this->assertDebugInLog(sprintf($logMsg, '', 'config.yml', 'name', 0), true);
         $this->assertLogEmpty();
 
@@ -305,7 +306,7 @@ class ConfigLoaderTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Configuration directory '/foo' not found", $msg);
+        self::assertEquals("Configuration directory '/foo' not found", $msg);
         $this->assertLogEmpty();
 
         // test3 - existent absolute path directory
@@ -324,7 +325,7 @@ class ConfigLoaderTest extends LogTestCase
         $this->assertLogEmpty();
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
         $cfgFile = realpath($cfgDir.DIRECTORY_SEPARATOR.'config.yml');
-        $this->assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
+        self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
     }
     /**
      * loadConfigFiles
@@ -338,9 +339,9 @@ class ConfigLoaderTest extends LogTestCase
         ]);
         $input = new ArgvInput([ './test', '--required', '--good' ]);
         InputOptionsSetter::safeBind($input, $definition);
-        $this->assertTrue($input->hasOption('good'));
-        $this->assertTrue($input->hasOption('required'));
-        $this->assertFalse($input->getOption('good'));
+        self::assertTrue($input->hasOption('good'));
+        self::assertTrue($input->hasOption('required'));
+        self::assertFalse($input->getOption('good'));
 
         $definition = new InputDefinition([
             new InputOption('good', mode: InputOption::VALUE_NONE),
@@ -348,10 +349,10 @@ class ConfigLoaderTest extends LogTestCase
         ]);
         $input = new ArgvInput([ './test', '--required', 'foo', '--good' ]);
         InputOptionsSetter::safeBind($input, $definition);
-        $this->assertTrue($input->hasOption('good'));
-        $this->assertTrue($input->hasOption('required'));
-        $this->assertTrue($input->getOption('good'));
-        $this->assertEquals('foo', $input->getOption('required'));
+        self::assertTrue($input->hasOption('good'));     /** @phpstan-ignore-line */
+        self::assertTrue($input->hasOption('required')); /** @phpstan-ignore-line */
+        self::assertTrue($input->getOption('good'));
+        self::assertEquals('foo', $input->getOption('required'));
     }
     /**
      * creates a fully equiped loader
@@ -375,7 +376,7 @@ class ConfigLoaderTest extends LogTestCase
         $confArray = $config ?? $defaultConfig;
         if ($mock) {
             /** @var Mock $mock */
-            $mock = Mockery ::mock(ConfigLoader::class);
+            $mock = Mockery::mock(ConfigLoader::class);
             $mock->shouldAllowMockingProtectedMethods();
             $mock->makePartial();
             $loader = $mock;

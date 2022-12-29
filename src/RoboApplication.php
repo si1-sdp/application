@@ -11,6 +11,7 @@ use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
 use League\Container\Argument\Literal\IntegerArgument;
+use League\Container\Exception\NotFoundException;
 use Robo\Robo;
 use Robo\Runner as RoboRunner;
 use Robo\Tasks;
@@ -29,8 +30,16 @@ class RoboApplication extends AbstractApplication
      */
     public function registerCommands()
     {
-        /** @var array<Tasks> $cClasses */
-        $cClasses = $this->getContainer()->get(self::COMMAND_TAG);
+        $logContext = [ 'name' => 'registerCommands' ];
+        try {
+            /** @var array<Tasks> $cClasses */
+            $cClasses = $this->getContainer()->get(self::COMMAND_TAG);
+        } catch (NotFoundException $e) {
+            $this->getLogger()->alert("No robo command(s) found", $logContext);
+
+            return;
+        }
+        $commands = [];
         foreach ($cClasses as $commandClass) {
             /** @var class-string $commandClass */
             $reflectionClass = new \ReflectionClass($commandClass);
@@ -40,9 +49,11 @@ class RoboApplication extends AbstractApplication
                 }
             }
         }
-        if (!empty($commands)) {
+        if (sizeof($commands) > 0) {
             $logContext['count'] = count($commands);
             $this->getLogger()->info("{count} robo command(s) found", $logContext);
+        } else {
+            $this->getLogger()->alert("No robo command(s) found", $logContext);
         }
     }
 
@@ -73,15 +84,16 @@ class RoboApplication extends AbstractApplication
     {
         // set application's name and version
         $this->setApplicationNameAndVersion();
+        // configure container.
         $this->configureContainer();
+        // configure application logger
         ApplicationLogger::configureLogger($this->getLogger(), $this->intConfig, $this->homeDir);
-        /** @var ClassDiscoverer $disc */
-        $disc = $this->getContainer()->get('class_discoverer');
-        $namespace = $this->getNameSpace(self::COMMAND_TAG);
-        $disc->addDiscoverer($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS, emptyOk: false);
+
+        $namespace = $this->getNamespace(self::COMMAND_TAG);
+        $this->addDiscoveries($namespace, self::COMMAND_TAG, self::COMMAND_SUBCLASS);
         Robo::finalizeContainer($this->getContainer());
-        /** Discover all needed classes  */
-        $disc->discoverAllClasses();
+
+        $this->discoverClasses();
         $this->registerCommands();
     }
     /**

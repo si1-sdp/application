@@ -65,7 +65,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         /** @var array<string> $configPathPatterns */
         $configPathPatterns    = $config->get(CONF::CONFIG_PATH_PATTERNS);
         /** @var int $configDepth */
-        $configDepth = $config->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
+        $configDepth = (bool) $config->get(CONF::CONFIG_SEARCH_RECURSIVE) ? -1 : 0;
         /** @var bool $configSortByName */
         $configSortByName      = $config->get(CONF::CONFIG_SORT_BY_NAME);
         $this->configDir       = $dir;
@@ -134,7 +134,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         if ($event->getInput()->hasOption('config') && null !== $event->getInput()->getOption('config')) {
             /** @var string $filename */
             $filename = $event->getInput()->getOption('config');
-            if ($filename && file_exists($filename)) {
+            if ('' !== $filename && file_exists($filename)) {
                 $logCtx = [ 'file' => $filename];
                 $this->getLogger()->debug("Loading configfile: {file}", $logCtx);
                 $config->addFile($filename);
@@ -165,11 +165,11 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             $rootDirectory = $this->configDir;
         }
         $dirs = $this->getDirectories($rootDirectory, $this->getConfiguredApplication());
-        if (empty($dirs) && true === $askedConfig) {
+        if (sizeof($dirs) === 0 && true === $askedConfig) {
             throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $rootDirectory));
         }
-        $logCtx['paths'] = "[".($this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
-        $logCtx['names'] = "[".($this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
+        $logCtx['paths'] = "[".((bool) $this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
+        $logCtx['names'] = "[".((bool) $this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
         $logCtx['sort']  = $this->sortByName ? 'name' : 'path';
         $logCtx['depth'] = $this->depth;
         $msg = "Loading config: paths={paths} - names={names} - sort by {sort} - depth = {depth}";
@@ -191,7 +191,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         if (substr($configDir, 0, 1) !== '/' && strpos($configDir, '://') === false) {
             foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
                 $fullDir = $dir.DIRECTORY_SEPARATOR.$configDir;
-                if ($dir && is_dir($fullDir) && !in_array($fullDir, $directories)) {
+                if (is_dir($fullDir) && !in_array($fullDir, $directories, true)) {
                     $directories[] = $dir.DIRECTORY_SEPARATOR.$configDir;
                 }
             }
@@ -219,7 +219,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             /** @var array<string> $filenames */
             $filenames = $event->getInput()->getOption('add-config');
             foreach ($filenames as $file) {
-                if ($file && file_exists($file)) {
+                if (file_exists($file)) {
                     $logCtx = [ 'file' => $file];
                     $this->getLogger()->debug("Adding configfile: {file}", $logCtx);
                     $config->addFile($file);

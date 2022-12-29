@@ -63,10 +63,8 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
         if (false === $emptyOk) {
             $this->tagCount[$tag] = 0;
         }
-        if (!empty($def->getErrMessages())) {
-            foreach ($def->getErrMessages() as $msg) {
-                $this->getLogger()->warning($msg, ['name' => 'addDiscoverer']);
-            }
+        foreach ($def->getErrMessages() as $msg) {
+            $this->getLogger()->warning($msg, ['name' => 'addDiscoverer']);
         }
         foreach ($def->getNamespaces() as $ns) {
             $this->discoverers[$ns][] = $def;
@@ -88,7 +86,7 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
             };
             foreach ($this->discoverers[$namespace] as $def) {
                 $logContext = [
-                    'name'      => 'discoverAll',
+                    'name'      => 'discoverAllClasses',
                     'tag'       => $def->getTag(),
                     'deps'      => "[".implode(', ', array_map($classNames, $def->getDependencies()))."]",
                     'excludes'  => "[".implode(', ', array_map($classNames, $def->getExcludeDeps()))."]",
@@ -122,7 +120,7 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
     protected function registerClasses($classes, $tag, $idAttribute = null)
     {
         $logContext = ['name'  => 'registerClasses', 'tag' => $tag];
-        /** @var class-string $class */
+        /** var class-string $class */
         foreach ($classes as $class) {
             $logContext['class'] = $class;
             try {
@@ -133,16 +131,16 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 continue;
             }
             $logContext['id'] = $serviceId;
-            if ($this->getContainer()->has((string) $class)) {
+            if ($this->getContainer()->has($class)) {
                 $this->getLogger()->debug("Class {class} already in container", $logContext);
-                $serviceDefinition = $this->getContainer()->extend((string) $class);
+                $serviceDefinition = $this->getContainer()->extend($class);
             } else {
                 $this->getLogger()->debug("Adding class {class} to container", $logContext);
-                $serviceDefinition = $this->getContainer()->addShared((string) $class);
+                $serviceDefinition = $this->getContainer()->addShared($class);
             }
-            if (null !== $serviceId && !$serviceDefinition->hasTag((string) $serviceId)) {
+            if (null !== $serviceId && !$serviceDefinition->hasTag($serviceId)) {
                 $this->getLogger()->debug("Add tag {id} for class {class}", $logContext);
-                $serviceDefinition->addTag((string) $serviceId);
+                $serviceDefinition->addTag($serviceId);
             }
             if (!$serviceDefinition->hasTag($tag)) {
                 $this->getLogger()->debug("Add tag {tag} for class {class}", $logContext);
@@ -170,6 +168,10 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
                 $attributeArguments = $attribute->getArguments();
                 if (array_key_exists($attributeName, $attributeArguments)) {
                     $value = $attributeArguments[$attributeName];
+                    /** @infection-ignore-all - break is here just for speed gain
+                     *  continue mutation won't be detected
+                    */
+
                     break;
                 }
             }
@@ -253,11 +255,9 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
     protected function classMatchesFilters($class, $dependencies, $excludeDeps)
     {
         // exclusions work with logical OR : anny exclusion filters class out.
-        if (!empty($excludeDeps)) {
-            foreach ($excludeDeps as $dep) {
-                if ($this->dependsOn($class, $dep)) {
-                    return false;
-                }
+        foreach ($excludeDeps as $dep) {
+            if ($this->dependsOn($class, $dep)) {
+                return false;
             }
         }
         // dependencies work with logical AND : all dependencies have to be met

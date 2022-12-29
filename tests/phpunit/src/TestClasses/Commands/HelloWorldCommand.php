@@ -21,6 +21,7 @@ class HelloWorldCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         print 'Hello world !!';
+        $this->getLogger()->debug('Hello world just ran !');
 
         return 0;
     }

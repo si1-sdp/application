@@ -22,7 +22,7 @@ class DumpConfigCommandTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
     }
     /**
@@ -37,6 +37,7 @@ class DumpConfigCommandTest extends LogTestCase
         $this->expectOutputString("schema:               []\n");
         $cmd = new DumpconfigCommand();
         $cmd->setConfig(new ConfigHelper());
-        $cmd->execute(new ArgvInput(), new NullOutput());
+        $ret = $cmd->execute(new ArgvInput(), new NullOutput());
+        self::assertEquals(0, $ret);
     }
 }

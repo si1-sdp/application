@@ -6,6 +6,7 @@ namespace DgfipSI1\Application\Contracts;
 
 use Psr\Log\LoggerInterface;
 use DgfipSI1\Application\Exception\RuntimeException;
+use League\Container\ContainerAwareInterface;
 
 /**
  * Implements methods for loggerAwareInterface
@@ -37,7 +38,8 @@ trait LoggerAwareTrait
         if ($this->logger instanceof LoggerInterface) {
             return $this->logger;
         }
-        if (method_exists($this, 'getContainer') && $this->getContainer()->has('logger')) {
+
+        if ($this instanceof ContainerAwareInterface && $this->getContainer()->has('logger')) {
             /** @var LoggerInterface $contLogger */
             $contLogger = $this->getContainer()->get('logger');
 

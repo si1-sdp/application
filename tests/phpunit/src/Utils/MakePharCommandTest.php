@@ -6,16 +6,22 @@
 namespace DgfipSI1\ApplicationTests\Utils;
 
 use Composer\Autoload\ClassLoader;
+use DgfipSI1\Application\ApplicationInterface;
+use DgfipSI1\Application\ApplicationSchema;
 use DgfipSI1\Application\Command;
 use DgfipSI1\Application\SymfonyApplication;
 use DgfipSI1\Application\Utils\MakePharCommand;
+use DgfipSI1\ConfigHelper\ConfigHelper;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use Mockery;
 use Mockery\Mock;
 use org\bovigo\vfs\vfsStream;
+use org\bovigo\vfs\vfsStreamDirectory;
 use Phar;
 use RecursiveIteratorIterator;
+use ReflectionClass;
+use ReflectionProperty;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -30,12 +36,16 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class MakePharCommandTest extends LogTestCase
 {
+    /** @var vfsStreamDirectory */
+    private $root;
+
     /**
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
+        $this->root = vfsStream::setup();
         $this->logger = new TestLogger();
     }
     /**
@@ -45,6 +55,17 @@ class MakePharCommandTest extends LogTestCase
     public function tearDown(): void
     {
         \Mockery::close();
+    }
+    /**
+     *
+     * @covers \DgfipSI1\Application\Utils\MakePharCommand::getPharRoot
+     *
+     *
+     * @return void
+     */
+    public function testGetPharRoot()
+    {
+        self::assertEquals('', MakePharCommand::getPharRoot());
     }
     /**
      *
@@ -61,7 +82,14 @@ class MakePharCommandTest extends LogTestCase
         /** @var MakePharCommand $cmd */
         $cmd = $this->createPharMaker();
         $cmd->configure();
-        $this->assertMatchesRegularExpression('/phar.readonly/', $cmd->getHelp());
+        $flatHelp = str_replace("\n", "@", $cmd->getHelp());
+
+        $regexp = "excluded :.*Test files[^@]*tests, phpcs.xml.*@.*";
+        $regexp .= "Development files[^@]*.git, .gitignore.*@.*";
+        $regexp .= "Composer files[^@]*bin, vendor.*@.*";
+        $regexp .= "Various files[^@]*README.md, CONTRIBUTING.md.*@@@.*In addition the following";
+
+        self::assertMatchesRegularExpression("/$regexp/", $flatHelp);
     }
     /**
      *
@@ -83,7 +111,7 @@ class MakePharCommandTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertMatchesRegularExpression('/Creating phar disabled/', $msg);
+        self::assertMatchesRegularExpression('/Creating phar disabled/', $msg);
     }
     /**
      *
@@ -97,9 +125,9 @@ class MakePharCommandTest extends LogTestCase
      */
     public function testExecuteException()
     {
-        /** @var Mock $cmd */
+        /** @var \Mockery\MockInterface $cmd */
         $cmd = $this->createPharMaker(true);
-        $cmd->shouldReceive('pharReadonly')->andReturn(true); /** @phpstan-ignore-line */
+        $cmd->shouldReceive('pharReadonly')->andReturn(true);
         $msg = '';
         try {
             /** @var MakePharCommand $cmd */
@@ -107,29 +135,100 @@ class MakePharCommandTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertMatchesRegularExpression('/Creating phar disabled by the php.ini/', $msg);
+        self::assertMatchesRegularExpression('/Creating phar disabled by the php.ini/', $msg);
     }
-
+    /**
+     * DataProvider for execute
+     *
+     * @return array<string,array<mixed>>
+     */
+    public function executeData()
+    {
+                           //pass phar_file
+        return [                //    arg ?
+            'With_phararg_create_phar' => [ true   ,  true    ],
+            'With_phararg_dont_create' => [ true   ,  false   ],
+            'With_default_file       ' => [ false  ,  false   ] ,
+        ];
+    }
     /**
      *
      * @covers \DgfipSI1\Application\Utils\MakePharCommand::execute
+     *
+     * @dataProvider executeData
      *
      * @runInSeparateProcess
      *
      * @preserveGlobalState disabled
      *
+     * @param bool $pharArg
+     * @param bool $createPhar
+     *
      * @return void
      */
-    public function testExecute()
+    public function testExecute($pharArg, $createPhar)
     {
-        /** @var Mock $cmd */
+        /** @var \Mockery\MockInterface $cmd */
         $cmd = $this->createPharMaker(true);
-        $cmd->shouldReceive('pharReadonly')->andReturn(false); /** @phpstan-ignore-line */
-        $cmd->shouldReceive('composerRun');
-        $cmd->shouldReceive('makePhar');
+        $cmd->shouldReceive('pharReadonly')->once()->andReturn(false);
+
         /** @var MakePharCommand $cmd */
-        $cmd->execute(new ArgvInput([]), new NullOutput());
-        $this->assertNoticeInLog('{file} successfully created');
+        if ($pharArg) {
+            $phar = $this->root->url()."/testApp.phar";
+            touch($phar);
+            $cmd->setConfig(new ConfigHelper());
+            $cmd->getConfig()->set('commands.make_phar.options.phar_file', $phar);
+        } else {
+            $phar = getcwd().'/testApp.phar';
+        }
+        /** @var \Mockery\MockInterface $cmd */
+        $cmd->shouldReceive('makePhar')->withArgs(
+            function ($args) use ($createPhar, $phar) {
+                if ($createPhar) {
+                    touch($phar);
+                }
+
+                return true;
+            }
+        )->once();
+
+        /** @var \Mockery\MockInterface $m */
+        $m = Mockery::mock('overload:DgfipSI1\Application\Utils\DirectoryStasher')->makePartial();
+        $m->shouldReceive('stash')->withArgs(
+            function ($src, $dst, $ex, $callBacks) {
+                $methods = array_map(static fn ($v) => [$v[0][1], $v[1]], $callBacks);
+                $composer = $symlinks = false;
+                foreach ($methods as $m) {
+                    if ('composerRun' === $m[0] && implode(' ', $m[1]) === "install --working-dir ".$dst." --no-dev") {
+                        $composer = true;
+                    }
+                    if ('resolveSymlinks' === $m[0]) {
+                        $symlinks = true;
+                    }
+                }
+                if ($composer && $symlinks) {
+                    return true;
+                }
+
+                return false;
+            }
+        )->once();
+        $m->shouldReceive('cleanup')->once();
+        /** @var MakePharCommand $cmd */
+        $ret = $cmd->execute(new ArgvInput([]), new NullOutput());
+        if ($pharArg) {
+            $this->assertNoticeInLog('removing old phar');
+            if ($createPhar) {
+                self::assertFileExists($phar);
+            } else {
+                self::assertFileDoesNotExist($phar);
+            }
+        } else {
+            $this->assertNoticeNotInLog('removing old phar');
+        }
+        $this->assertNoticeInContextLog('Phar file created', ['name' => 'make-phar', 'file' => $phar]);
+        $this->assertLogEmpty();
+        self::assertEquals(0, $ret);
     }
     /**
      * composerRun
@@ -144,15 +243,75 @@ class MakePharCommandTest extends LogTestCase
      */
     public function testComposerRun()
     {
+        $m = Mockery::mock('overload:Composer\Console\Application')->makePartial();
+        $m->shouldReceive('setAutoExit')->with(false)->once();
+        $m->shouldReceive('run')->withArgs(
+            function ($argv) {
+                if ($argv instanceof ArgvInput) {
+                    $cmd = $argv->getFirstArgument();
+                    $verbose = $argv->getParameterOption('about');
+                    if ('about' === $cmd && '-q' === $verbose) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        )->once();
+        /** @var MakePharCommand $cmd */
+        $cmd = $this->createPharMaker();
+        $ret = $cmd->composerRun(['about']);
+
+
+        $this->assertNoticeInContextLog('Running composer about', ['name' => 'make-phar']);
+        self::assertEquals(0, $ret);
+    }
+    /**
+     * pharExcluded
+     *
+     * @covers \DgfipSI1\Application\Utils\MakePharCommand::getStashExcludedFiles
+     *
+     * @runInSeparateProcess
+     *
+     * @preserveGlobalState disabled
+     *
+     * @return void
+     */
+    public function testGetStashExcludedFiles()
+    {
         $cmd = $this->createPharMaker(true);
         $class = new \ReflectionClass(MakePharCommand::class);
-        $method = $class->getMethod('composerRun');
+        $method = $class->getMethod('getStashExcludedFiles');
         $method->setAccessible(true);
+        $tfprop = $class->getProperty('testFiles');
+        $tfprop->setAccessible(true);
+        $dfprop = $class->getProperty('devFiles');
+        $dfprop->setAccessible(true);
+        $cfprop = $class->getProperty('composerFiles');
+        $cfprop->setAccessible(true);
+        $vfprop = $class->getProperty('variousFiles');
+        $vfprop->setAccessible(true);
 
-        $method->invokeArgs($cmd, [['about']]);
-        $this->assertNoticeInLog('Running composer about');
+        /** @var ApplicationInterface $application */
+        $application = $cmd->getContainer()->get('application');
+        $icprop = (new \ReflectionClass(SymfonyApplication::class))->getProperty('intConfig');
+        $icprop->setAccessible(true);
+        /** @var ConfigHelper $conf */
+        $conf = $icprop->getValue($application);
+        $conf->set(ApplicationSchema::PHAR_EXCLUDES, ['foo']);
+
+        /** @var array<string> $files */
+        $files = $method->invoke($cmd);
+        /** @var ReflectionProperty $prop */
+        foreach ([$tfprop, $dfprop, $cfprop, $vfprop] as $prop) {
+            /** @var array<string> $propFiles */
+            $propFiles = $prop->getValue($cmd);
+            foreach ($propFiles as $file) {
+                self::assertTrue(in_array($file, $files, true));
+            }
+        }
+        self::assertTrue(in_array('foo', $files, true));
     }
-
     /**
      * pharReadonly
      *
@@ -171,7 +330,7 @@ class MakePharCommandTest extends LogTestCase
         $method = $class->getMethod('pharReadonly');
         $method->setAccessible(true);
 
-        $this->assertTrue($method->invoke($cmd));
+        self::assertTrue($method->invoke($cmd));
     }
     /**
      * makePhar
@@ -206,46 +365,66 @@ class MakePharCommandTest extends LogTestCase
         foreach ($iterator as $item) {
             $files[] = $item->getFilename();
         }
-        $this->assertEquals(sizeof($expectedFiles), sizeof($files));
+        self::assertEquals(sizeof($expectedFiles), sizeof($files));
         foreach ($expectedFiles as $file) {
-            $this->assertTrue(in_array($file, $files));
+            self::assertTrue(in_array($file, $files, true));
         }
         $this->assertLogEmpty();
     }
 
     /**
+     *
+     *
+     * @return array<string,array<mixed>>
+     *
+     */
+    public function makePharData()
+    {
+        return [             //  create
+            'error_creating' => [ false ],
+            'phar_create_ok' => [ true  ],
+        ];
+    }
+    /**
      * makePhar
      *
      * @covers \DgfipSI1\Application\Utils\MakePharCommand::makePhar
+     *
+     * @dataProvider makePharData
      *
      * @runInSeparateProcess
      *
      * @preserveGlobalState disabled
      *
+     * @param bool $createPhar
+     *
      * @return void
      */
-    public function testMakePhar()
+    public function testMakePhar($createPhar)
     {
-        $cmd = $this->createPharMaker(true, true);
+
+        $cmd = $this->createPharMaker(true, true, $createPhar);
         $class = new \ReflectionClass(MakePharCommand::class);
         $method = $class->getMethod('makePhar');
         $method->setAccessible(true);
 
-        $root = vfsStream::setup();
-        $entryPoint = $root->url().DIRECTORY_SEPARATOR.'testApp';
+        $entryPoint = $this->root->url().DIRECTORY_SEPARATOR.'testApp';
         $pharFile = 'testApp.phar';
-        $fullName = $root->url().DIRECTORY_SEPARATOR.'testApp.phar';
-        file_put_contents($fullName, 'xxx');
+        $fullName = $this->root->url().DIRECTORY_SEPARATOR.'testApp.phar';
         $msg = '';
         try {
-            $method->invokeArgs($cmd, [$pharFile, $entryPoint, []]);
+            $method->invokeArgs($cmd, [$pharFile, $this->root->url(), $entryPoint, []]);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        // if we get to chmod, we have run threw all phar commands ;)
-        $this->assertEquals("Phar file wasn't created", $msg);
-        $this->assertNoticeInLog('removing old phar : {file}');
-        $this->assertNoticeInLog('Creating phar : {file}');
+        if (false === $createPhar) {
+            self::assertEquals("Phar file wasn't created", $msg);
+        } else {
+            $perms = substr(sprintf('%o', fileperms($fullName)), -4);
+            self::assertEquals('0770', $perms);
+            self::assertEquals("", $msg);
+        }
+        $this->assertNoticeInContextLog('Creating phar : {file}', ['name' => 'make-phar', 'file' => $pharFile]);
         $this->assertLogEmpty();
     }
     /**
@@ -266,18 +445,19 @@ class MakePharCommandTest extends LogTestCase
         $method = $class->getMethod('initPhar');
         $method->setAccessible(true);
         $phar = $method->invokeArgs($cmd, ['pharFile']);
-        $this->assertNull($phar);
-        $this->assertAlertInLog("Can't create phar : {file}");
+        self::assertNull($phar);
+        $this->assertAlertInContextLog("Can't create phar : {file}", ['name' => 'make-phar', 'file' => 'pharFile']);
     }
     /**
      * create pharmaker mock
      *
      * @param bool $mock
      * @param bool $mockPhar
+     * @param bool $mockPharCreate
      *
      * @return Command
      */
-    protected function createPharMaker($mock = false, $mockPhar = false)
+    protected function createPharMaker($mock = false, $mockPhar = false, $mockPharCreate = false)
     {
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
         $app = new SymfonyApplication($loaders[0], ['./testApp']);
@@ -285,22 +465,38 @@ class MakePharCommandTest extends LogTestCase
         $app->setLogger($this->logger);
         $app->getContainer()->addShared('application', $app);
         if ($mock) {
-            /** @var Mock $mock */
+            /** @var \Mockery\MockInterface $mock */
             $mock = Mockery::mock(MakePharCommand::class);
             $mock->shouldAllowMockingProtectedMethods();
             $mock->makePartial();
             $cmd = $mock;
             if ($mockPhar) {
-                /** @var Mock $phar */
+                /** @var \Mockery\MockInterface $phar */
                 $phar = \Mockery::mock(Phar::class);
-                $phar->makePartial(); /* @php-ignore */
-                $phar->shouldReceive('startBuffering')->once();/** @phpstan-ignore-line */
-                $phar->shouldReceive('createDefaultStub')->withArgs(['testApp']);/** @phpstan-ignore-line */
-                $phar->shouldReceive('buildFromIterator')->once();/** @phpstan-ignore-line */
-                $phar->shouldReceive('setStub')->once();/** @phpstan-ignore-line */
-                $phar->shouldReceive('stopBuffering')->once();/** @phpstan-ignore-line */
-                $phar->shouldReceive('compressFiles')->once();/** @phpstan-ignore-line */
-                $mock->shouldReceive('initPhar')->once()->andReturn($phar);     /** @phpstan-ignore-line */
+                $phar->makePartial();
+                $phar->shouldReceive('startBuffering')->once();
+                $phar->shouldReceive('buildFromIterator')->once();
+                $phar->shouldReceive('setStub')->withArgs(
+                    function ($stub) {
+                        $start = str_starts_with($stub, "#!/usr/bin/env php");
+                        $more = sizeof(explode("\n", $stub)) > 2;
+
+                        return $start && $more;
+                    }
+                )->once();
+                $phar->shouldReceive('stopBuffering')->once();
+                if ($mockPharCreate) {
+                    $phar->shouldReceive('compressFiles')->withArgs(
+                        function ($args) {
+                            touch($this->root->url().DIRECTORY_SEPARATOR.'testApp.phar');
+
+                            return true;
+                        }
+                    )->once();
+                } else {
+                    $phar->shouldReceive('compressFiles')->once();
+                }
+                $mock->shouldReceive('initPhar')->once()->andReturn($phar);
             }
         } else {
             $cmd = new MakePharCommand();

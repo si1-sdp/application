@@ -18,6 +18,7 @@ use DgfipSI1\ApplicationTests\TestClasses\ForDiscoverer\TestTrait;
 use DgfipSI1\testLogger\LogTestCase;
 use DgfipSI1\testLogger\TestLogger;
 use League\Container\Container;
+use Mockery;
 use ReflectionClass;
 use Robo\Tasks;
 
@@ -36,19 +37,42 @@ class ClassDiscovererTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
         $this->loader = $loaders[0];
     }
     /**
+     * Checks that log is empty at end of test
+     *
+     * @return void
+     */
+    public function tearDown(): void
+    {
+        \Mockery::close();
+    }
+    /**
      * creates a fully equiped discoverer
+     *  @param bool $mock
      *
      * @return ClassDiscoverer;
      */
-    public function createDiscoverer()
+    public function createDiscoverer($mock = false)
     {
-        $disc = new ClassDiscoverer($this->loader);
+        if ($mock) {
+            /** @var \Mockery\MockInterface $disc */
+            $disc = Mockery::mock(ClassDiscoverer::class);
+            $disc->makePartial();
+            $disc->shouldAllowMockingProtectedMethods();
+
+            $class = new ReflectionClass(ClassDiscoverer::class);
+            $clProp = $class->getProperty('classLoader');
+            $clProp->setAccessible(true);
+            $clProp->setValue($disc, $this->loader);
+        } else {
+            $disc = new ClassDiscoverer($this->loader);
+        }
+        /** @var ClassDiscoverer $disc */
         $disc->setContainer(new Container());
         $this->logger = new TestLogger();
         $disc->setLogger($this->logger);
@@ -70,8 +94,8 @@ class ClassDiscovererTest extends LogTestCase
         $loadProp->setAccessible(true);
 
         $disc = new ClassDiscoverer($this->loader);
-        $this->assertEquals([], $discProp->getValue($disc));
-        $this->assertEquals($this->loader, $loadProp->getValue($disc));
+        self::assertEquals([], $discProp->getValue($disc));
+        self::assertEquals($this->loader, $loadProp->getValue($disc));
     }
     /**
      * test discovererProperties
@@ -84,13 +108,13 @@ class ClassDiscovererTest extends LogTestCase
     {
         // test 01 - nominal case - minimal input
         $def = new DiscovererDefinition('ns', 'tag');
-        $this->assertEquals(['ns'], $def->getNamespaces());
-        $this->assertEquals('tag', $def->getTag());
-        $this->assertEquals([], $def->getDependencies());
-        $this->assertEquals([], $def->getExcludeDeps());
-        $this->assertEquals(null, $def->getIdAttribute());
-        $this->assertEquals(true, $def->getEmptyOk());
-        $this->assertEmpty($def->getErrMessages());
+        self::assertEquals(['ns'], $def->getNamespaces());
+        self::assertEquals('tag', $def->getTag());
+        self::assertEquals([], $def->getDependencies());
+        self::assertEquals([], $def->getExcludeDeps());
+        self::assertEquals(null, $def->getIdAttribute());
+        self::assertEquals(true, $def->getEmptyOk());
+        self::assertEmpty($def->getErrMessages());
 
         // test 02 - nominal case - all
         $roboClass = TestRoboClass::class;
@@ -98,20 +122,20 @@ class ClassDiscovererTest extends LogTestCase
         $testClass = TestBaseClass::class;
         $testRef = new ReflectionClass($testClass);
         $def = new DiscovererDefinition([ 'ns' ], 'tag', $roboClass, $testClass, 'id', false);
-        $this->assertEquals(['ns'], $def->getNamespaces());
-        $this->assertEquals('tag', $def->getTag());
-        $this->assertEquals([$roboRef], $def->getDependencies());
-        $this->assertEquals([$testRef], $def->getExcludeDeps());
-        $this->assertEquals('id', $def->getIdAttribute());
-        $this->assertEquals(false, $def->getEmptyOk());
-        $this->assertEmpty($def->getErrMessages());
+        self::assertEquals(['ns'], $def->getNamespaces());
+        self::assertEquals('tag', $def->getTag());
+        self::assertEquals([$roboRef], $def->getDependencies());
+        self::assertEquals([$testRef], $def->getExcludeDeps());
+        self::assertEquals('id', $def->getIdAttribute());
+        self::assertEquals(false, $def->getEmptyOk());
+        self::assertEmpty($def->getErrMessages());
 
         // test 03 - bad classes for dependencies or excludes
-        $def = new DiscovererDefinition([ 'ns' ], 'tag', [ 'foo' ], [ 'bar' ], 'id', false);
+        $def = new DiscovererDefinition([ 'ns' ], 'tag', [ 'foo', $roboClass ], [ 'bar', $testClass ], 'id', false);
         $errors = ['Class "foo" does not exist', 'Class "bar" does not exist' ];
-        $this->assertEquals($errors, $def->getErrMessages());
-        $this->assertEquals([], $def->getDependencies());
-        $this->assertEquals([], $def->getExcludeDeps());
+        self::assertEquals($errors, $def->getErrMessages());
+        self::assertEquals([$roboRef], $def->getDependencies());
+        self::assertEquals([$testRef], $def->getExcludeDeps());
     }
     /**
      * test addDiscoverer
@@ -124,21 +148,31 @@ class ClassDiscovererTest extends LogTestCase
         $class = new ReflectionClass(ClassDiscoverer::class);
         $discProp = $class->getProperty('discoverers');
         $discProp->setAccessible(true);
+        $tcProp = $class->getProperty('tagCount');
+        $tcProp->setAccessible(true);
+
 
         $disc = $this->createDiscoverer();
         $disc->addDiscoverer([ 'ns' ], 'tag', [ 'foo' ], [ 'bar' ], 'id', false);
-        $this->assertWarningInLog('Class "foo" does not exist');
-        $this->assertWarningInLog('Class "bar" does not exist');
-
+        $this->assertWarningInContextLog('Class "foo" does not exist', ['name' => 'addDiscoverer']);
+        $this->assertWarningInContextLog('Class "bar" does not exist', ['name' => 'addDiscoverer']);
+        /** @var array<string,int> $tagCount */
+        $tagCount = $tcProp->getValue($disc);
+        self::assertArrayHasKey('tag', $tagCount);
+        self::assertEquals(0, $tagCount['tag']);
         /** @var array<string,array<DiscovererDefinition>> $definitions */
         $definitions = $discProp->getValue($disc);
-        $this->assertTrue(array_key_exists('ns', $definitions));
-        $this->assertEquals(1, count($definitions));
+        self::assertTrue(array_key_exists('ns', $definitions));
+        self::assertEquals(1, count($definitions));
         $def = $definitions['ns'][0];
-        $this->assertEquals(['ns'], $def->getNamespaces());
-        $this->assertEquals('tag', $def->getTag());
-        $this->assertEquals([], $def->getDependencies());
-        $this->assertEquals([], $def->getExcludeDeps());
+        self::assertEquals(['ns'], $def->getNamespaces());
+        self::assertEquals('tag', $def->getTag());
+        self::assertEquals([], $def->getDependencies());
+        self::assertEquals([], $def->getExcludeDeps());
+
+        $disc->addDiscoverer([ 'ns' ], 'tag_not_required', [ 'foo' ], [ 'bar' ], 'id');
+
+        self::assertFalse(array_key_exists('tag_not_required', $tagCount));
     }
     /**
      * test
@@ -148,13 +182,39 @@ class ClassDiscovererTest extends LogTestCase
      */
     public function testDiscoverAllClasses()
     {
-        $disc = $this->createDiscoverer();
+        $class = new ReflectionClass(ClassDiscoverer::class);
+        $tcProp = $class->getProperty('tagCount');
+        $tcProp->setAccessible(true);
+
+        $disc = $this->createDiscoverer(true);
+        /** @var \Mockery\MockInterface $disc */
+        $disc->shouldReceive('registerClasses')->times(3);
+
+        /** @var ClassDiscoverer $disc */
         $this->logger->setCallers(['discoverAllClasses']);
-        $disc->addDiscoverer(self::TEST_NAMESPACE, 'tag', Tasks::class);
+        $disc->addDiscoverer(self::TEST_NAMESPACE, 'tag1', Tasks::class, $this::class, emptyOk: false);
+        $disc->addDiscoverer('TestClasses\\Commands', 'tag1', Tasks::class, [], 'name', emptyOk: false);
+        $disc->addDiscoverer(self::TEST_NAMESPACE, 'tag2', Tasks::class, [], emptyOk: false);
+
         $disc->discoverAllClasses();
-        $this->assertDebugInLog('Discovering all classes...');
-        $this->assertInfoInLog('tag : Search [Tasks] classes, excluding [] : 1 classe(s) found.', true);
+        $this->assertDebugInContextLog('Discovering all classes...', ['name' => 'discoverAllClasses']);
+        $msg = "{tag} : Search {deps} classes, excluding {excludes} : {count} classe(s) found.";
+        $logCtxt = ['name' => 'discoverAllClasses', 'tag' => 'tag1', 'deps' => '[Tasks]', 'count' => 1];
+        $this->assertInfoInContextLog($msg, array_merge($logCtxt, ['excludes' => '[ClassDiscovererTest]']));
+        $logCtxt = ['name' => 'discoverAllClasses', 'tag' => 'tag1', 'deps' => '[Tasks]', 'attribute' => 'name'];
+        $this->assertInfoInContextLog($msg, array_merge($logCtxt, ['excludes' => '[]', 'count' => 2]));
+        $logCtxt = ['name' => 'discoverAllClasses', 'tag' => 'tag2', 'deps' => '[Tasks]', 'attribute' => ''];
+        $this->assertInfoInContextLog($msg, array_merge($logCtxt, ['excludes' => '[]', 'count' => 1]));
+        //$this->showLogs();
         $this->assertLogEmpty();
+        /** @var array<string,int> $tagCount */
+        $tagCount = $tcProp->getValue($disc);
+        self::assertArrayHasKey('tag1', $tagCount);
+        self::assertEquals(3, $tagCount['tag1']);
+        self::assertArrayHasKey('tag2', $tagCount);
+        self::assertEquals(1, $tagCount['tag2']);
+
+
 
         $disc = $this->createDiscoverer();
         $this->logger->setCallers(['discoverAllClasses']);
@@ -165,7 +225,7 @@ class ClassDiscovererTest extends LogTestCase
         } catch (RuntimeException $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals('No classes found for tag tag', $msg);
+        self::assertEquals('No classes found for tag tag', $msg);
     }
     /**
      *  test discoverClassesInNamespace
@@ -189,10 +249,11 @@ class ClassDiscovererTest extends LogTestCase
             AbstractTestClass::class,
             TestTrait::class,
         ];
-        $this->assertEquals(count($refClasses), count($classes));
+        self::assertEquals(count($refClasses), count($classes));
+        $ctx = ['name' => 'discoverClassesInNamespace', 'namespace' => self::TEST_NAMESPACE ];
         foreach ($refClasses as $refClass) {
-            $this->assertDebugInLog("found $refClass", interpolate: true);
-            $this->assertTrue(in_array($refClass, $classes));
+            $this->assertDebugInContextLog("found {class}", array_merge($ctx, ['class' => $refClass]));
+            self::assertTrue(in_array($refClass, $classes, true));
         }
         $this->assertInfoInLog("5 classe(s) found in namespace");
         $this->assertLogEmpty();
@@ -224,9 +285,9 @@ class ClassDiscovererTest extends LogTestCase
 
         // test1 - no filters - only abstract, traits and interface are filtered out  */
         $classes = $filterMethod->invokeArgs($disc, [ $refClasses, []]);
-        $this->assertEquals([ TestRoboClass::class, TestBaseClass::class ], $classes);
-        foreach ($refClasses as $class) {
-            $this->assertDebugInLog('Applying Filters to '.$class, true);
+        self::assertEquals([ TestRoboClass::class, TestBaseClass::class ], $classes);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInContextLog('Applying Filters ', ['name' => 'filterClasses', 'class' => $ref ]);
         }
         $this->assertDebugInLog('Keeping '.TestRoboClass::class, true);
         $this->assertDebugInLog('Keeping '.TestBaseClass::class, true);
@@ -234,42 +295,43 @@ class ClassDiscovererTest extends LogTestCase
 
         // test2 - Filter In - Robo  */
         $classes = $filterMethod->invokeArgs($disc, [ $refClasses, [$roboClass]]);
-        $this->assertEquals([ TestRoboClass::class ], $classes);
-        foreach ($refClasses as $class) {
-            $this->assertDebugInLog('Applying Filters to '.$class, true);
+        self::assertEquals([ TestRoboClass::class ], $classes);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInLog('Applying Filters to '.$ref, true);
         }
         $this->assertDebugInLog('Keeping '.TestRoboClass::class, true);
         $this->assertLogEmpty();
 
         // test3 - Filter In two classes => exclude all  */
         $classes = $filterMethod->invokeArgs($disc, [ $refClasses, [$roboClass, $baseClass]]);
-        $this->assertEquals([], $classes);
-        foreach ($refClasses as $class) {
-            $this->assertDebugInLog('Applying Filters to '.$class, true);
+        self::assertEquals([], $classes);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInLog('Applying Filters to '.$ref, true);
         }
         $this->assertLogEmpty();
 
         // test4 - Filter Out - Robo */
         $classes = $filterMethod->invokeArgs($disc, [ $refClasses, [], [$roboClass]]);
-        $this->assertEquals([ TestBaseClass::class ], $classes);
-        foreach ($refClasses as $class) {
-            $this->assertDebugInLog('Applying Filters to '.$class, true);
+        self::assertEquals([ TestBaseClass::class ], $classes);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInLog('Applying Filters to '.$ref, true);
         }
         $this->assertDebugInLog('Keeping '.TestBaseClass::class, true);
         $this->assertLogEmpty();
 
         // test5 - Filter Out two classes => include none  */
         $classes = $filterMethod->invokeArgs($disc, [ $refClasses, [], [$roboClass, $baseClass]]);
-        $this->assertEquals([ ], $classes);
-        foreach ($refClasses as $class) {
-            $this->assertDebugInLog('Applying Filters to '.$class, true);
+        self::assertEquals([ ], $classes);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInLog('Applying Filters to '.$ref, true);
         }
         $this->assertLogEmpty();
 
         // test6 - Filter with a bad class  */
-        $classes = $filterMethod->invokeArgs($disc, [ ['foo'], [], [$roboClass, $baseClass]]);
+        $classes = $filterMethod->invokeArgs($disc, [ ['foo', TestBaseClass::class], []]);
         $this->assertDebugInLog('Applying Filters to {class}');
         $this->assertWarningInLog('Class "foo" does not exist');
+        $this->assertDebugInLog('Keeping '.TestBaseClass::class, true);
         $this->assertLogEmpty();
     }
     /**
@@ -291,10 +353,14 @@ class ClassDiscovererTest extends LogTestCase
             TestBaseClass::class,
         ];
         $registerMethod->invokeArgs($disc, [ $classes, 'allClasses' ]);
-        $this->assertDebugInLog('Adding class '.TestRoboClass::class.' to container', true);
+        $ctx = ['name' => 'registerClasses', 'class' => TestRoboClass::class, 'tag' => 'allClasses'];
+        $this->assertDebugInContextLog('Adding class {class} to container', $ctx);
+        //$this->assertDebugInLog('Adding class '.TestRoboClass::class.' to container', true);
         $this->assertDebugInLog('Adding class '.TestBaseClass::class.' to container', true);
         $this->assertDebugInLog('Add tag allClasses for class '.TestRoboClass::class, true);
         $this->assertDebugInLog('Add tag allClasses for class '.TestBaseClass::class, true);
+        //$this->showLogs();
+        //$this->logReset();
         $this->assertLogEmpty();
         $registerMethod->invokeArgs($disc, [ $classes, 'allClasses' ]);
         $this->assertDebugInLog('Class '.TestRoboClass::class.' already in container', true);
@@ -304,8 +370,9 @@ class ClassDiscovererTest extends LogTestCase
         $this->assertDebugInLog('Class '.TestRoboClass::class.' already in container', true);
         $this->assertDebugInLog('Add tag RoboTasks for class '.TestRoboClass::class, true);
         $this->assertLogEmpty();
-        $registerMethod->invokeArgs($disc, [ [TestRoboClass::class], 'RoboTaskNoName', 'name' ]);
+        $registerMethod->invokeArgs($disc, [$classes, 'RoboTaskNoName', 'nameNotHere' ]);
         $this->assertWarningInLog('invalid service id for class '.TestRoboClass::class, true);
+        $this->assertWarningInLog('invalid service id for class '.TestBaseClass::class, true);
         $this->assertLogEmpty();
         $registerMethod->invokeArgs($disc, [ [TestBaseClass::class], 'BaseClass', 'name' ]);
         $this->assertDebugInLog('Class '.TestBaseClass::class.' already in container', true);
@@ -315,22 +382,22 @@ class ClassDiscovererTest extends LogTestCase
 
         /** @var TestBaseClass $testClass */
         $testClass = $disc->getContainer()->get(TestRoboClass::class);
-        $this->assertEquals(TestRoboClass::class, get_class($testClass));
+        self::assertEquals(TestRoboClass::class, get_class($testClass));
         $roboDef = $disc->getContainer()->extend(TestRoboClass::class);
-        $this->assertTrue($roboDef->hasTag('allClasses'));
-        $this->assertTrue($roboDef->hasTag('RoboTasks'));
-        $this->assertFalse($roboDef->hasTag('RoboTaskNoName'));
-        $this->assertFalse($roboDef->hasTag('BaseClass'));
+        self::assertTrue($roboDef->hasTag('allClasses'));
+        self::assertTrue($roboDef->hasTag('RoboTasks'));
+        self::assertFalse($roboDef->hasTag('RoboTaskNoName'));
+        self::assertFalse($roboDef->hasTag('BaseClass'));
 
         /** @var TestBaseClass $testClass */
         $testClass = $disc->getContainer()->get(TestBaseClass::class);
-        $this->assertEquals(TestBaseClass::class, get_class($testClass));
+        self::assertEquals(TestBaseClass::class, get_class($testClass));
         $baseDef = $disc->getContainer()->extend(TestBaseClass::class);
-        $this->assertTrue($baseDef->hasTag('allClasses'));
-        $this->assertFalse($baseDef->hasTag('RoboTasks'));
-        $this->assertFalse($baseDef->hasTag('RoboTaskNoName'));
-        $this->assertTrue($baseDef->hasTag('BaseClass'));
-        $this->assertTrue($baseDef->hasTag('test'));
+        self::assertTrue($baseDef->hasTag('allClasses'));
+        self::assertFalse($baseDef->hasTag('RoboTasks'));
+        self::assertFalse($baseDef->hasTag('RoboTaskNoName'));
+        self::assertTrue($baseDef->hasTag('BaseClass'));
+        self::assertTrue($baseDef->hasTag('test'));
     }
         /**
      *  test getAttributeValue
@@ -346,10 +413,10 @@ class ClassDiscovererTest extends LogTestCase
         $method = $class->getMethod('getAttributeValue');
         $method->setAccessible(true);
 
-        $this->assertNull($method->invokeArgs($disc, [ TestBaseClass::class, null]));
+        self::assertNull($method->invokeArgs($disc, [ TestBaseClass::class, null]));
 
         $name = $method->invokeArgs($disc, [ TestBaseClass::class, 'name' ]);
-        $this->assertEquals('test', $name);
+        self::assertEquals('test', $name);
 
         $msg = '';
         try {
@@ -357,13 +424,13 @@ class ClassDiscovererTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertMatchesRegularExpression('/Attribute .foo. not found in class/', $msg);
+        self::assertMatchesRegularExpression('/Attribute .foo. not found in class/', $msg);
         $msg = '';
         try {
             $name = $method->invokeArgs($disc, [ 'badClass', 'foo' ]);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertMatchesRegularExpression('/Error inspecting class/', $msg);
+        self::assertMatchesRegularExpression('/Error inspecting class/', $msg);
     }
 }

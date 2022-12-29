@@ -25,6 +25,8 @@ class ApplicationSchema implements ConfigurationInterface
     public const LOG_DATE_FORMAT         = 'dgfip_si1.log.date_format';
     public const LOG_OUTPUT_FORMAT       = 'dgfip_si1.log.output_format';
     public const LOG_LEVEL               = 'dgfip_si1.log.level';
+    public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
+    public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
 
     public const CONFIG_DIRECTORY        = 'dgfip_si1.configuration.root_dir';
     public const CONFIG_PATH_PATTERNS    = 'dgfip_si1.configuration.path_patterns';
@@ -33,9 +35,6 @@ class ApplicationSchema implements ConfigurationInterface
     public const CONFIG_SEARCH_RECURSIVE = 'dgfip_si1.configuration.search_recursive';
 
     public const PHAR_EXCLUDES           = 'dgfip_si1.phar.excludes';
-
-    public const DEFAULT_DATE_FORMAT     = "Y:m:d-H:i:s";
-    public const DEFAULT_OUTPUT_FORMAT   = "%datetime%|%level_name%|%context.name%|%message%\n";
 
     public const GLOBAL_OPTIONS          = 'dgfip_si1.global_options';
 
@@ -68,7 +67,7 @@ class ApplicationSchema implements ConfigurationInterface
                         ->scalarNode('output_format')->defaultValue(self::DEFAULT_OUTPUT_FORMAT)
                             ->info("Log output format ")->end()
                         ->enumNode('level')
-                            ->Values(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'])
+                            ->values(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'])
                             ->defaultValue('notice')->info("Logfile output level")->end()
                     ->end()
                 ->end()
@@ -129,7 +128,6 @@ class ApplicationSchema implements ConfigurationInterface
     {
         $treeBuilder = new TreeBuilder($name);
         $node = $treeBuilder->getRootNode();
-        /** @phpstan-ignore-next-line */
         $node->useAttributeAsKey('name')
             ->arrayPrototype()
                 ->children()
@@ -147,7 +145,7 @@ class ApplicationSchema implements ConfigurationInterface
                     ->scalarNode('description')
                         ->info('the option description displayed when showing the command help')->end()
                     ->variableNode('default')
-                        ->info('the default value of the option (for those which allow to pass values)')->end()
+                        ->info('the default value of the option)')->end()
                     ->enumNode('type')->values(['array', 'boolean', 'scalar', 'argument'])->defaultValue('scalar')
                         ->info("Type of option \n
     - array   : option accepts multiple values (e.g. --dir=/foo --dir=/bar)

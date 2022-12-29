@@ -74,7 +74,7 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
      *
      * @return void
      */
-    public function setNameSpace($namespace, $tag = null);
+    public function setNamespace($namespace, $tag = null);
     /**
      * gets the namespace
      *
@@ -82,7 +82,7 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
      *
      * @return string
      */
-    public function getNameSpace($tag = null);
+    public function getNamespace($tag = null);
     /**
      * Adds a mapped option to application configuration
      *

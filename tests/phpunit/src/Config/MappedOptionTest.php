@@ -20,7 +20,7 @@ class MappedOptionTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
     }
     /**
@@ -41,57 +41,57 @@ class MappedOptionTest extends LogTestCase
     public function testConstructor()
     {
         $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A');
-        $this->assertEquals('this is a test option', $opt->getOption()->getDescription());
-        $this->assertEquals('this is a test option', $opt->getDescription());
-        $this->assertEquals('A', $opt->getOption()->getShortcut());
-        $this->assertEquals([], $opt->getOption()->getDefault());
-        $this->assertEquals([], $opt->getDefaultValue());
-        $this->assertEquals('test', $opt->getOption()->getName());
-        $this->assertEquals('test', $opt->getName());
-        $this->assertTrue($opt->getOption()->isArray());
-        $this->assertFalse($opt->getOption()->isNegatable());
-        $this->assertFalse($opt->getOption()->isValueOptional());
-        $this->assertTrue($opt->getOption()->isValueRequired());
-        $this->assertTrue($opt->isArray());
+        self::assertEquals('this is a test option', $opt->getOption()->getDescription());
+        self::assertEquals('this is a test option', $opt->getDescription());
+        self::assertEquals('A', $opt->getOption()->getShortcut());
+        self::assertEquals([], $opt->getOption()->getDefault());
+        self::assertEquals([], $opt->getDefaultValue());
+        self::assertEquals('test', $opt->getOption()->getName());
+        self::assertEquals('test', $opt->getName());
+        self::assertTrue($opt->getOption()->isArray());
+        self::assertFalse($opt->getOption()->isNegatable());
+        self::assertFalse($opt->getOption()->isValueOptional());
+        self::assertTrue($opt->getOption()->isValueRequired());
+        self::assertTrue($opt->isArray());
 
         $opt = new MappedOption('test', OptionType::Scalar);
-        $this->assertEquals('', $opt->getOption()->getDescription());
-        $this->assertEquals('', $opt->getDescription());
-        $this->assertEquals(null, $opt->getOption()->getShortcut());
-        $this->assertEquals(null, $opt->getOption()->getDefault());
-        $this->assertEquals(null, $opt->getDefaultValue());
-        $this->assertEquals('test', $opt->getOption()->getName());
-        $this->assertEquals('test', $opt->getName());
-        $this->assertFalse($opt->getOption()->isArray());
-        $this->assertFalse($opt->getOption()->isNegatable());
-        $this->assertFalse($opt->getOption()->isValueOptional());
-        $this->assertTrue($opt->getOption()->isValueRequired());
-        $this->assertTrue($opt->isScalar());
+        self::assertEquals('', $opt->getOption()->getDescription());
+        self::assertEquals('', $opt->getDescription());
+        self::assertEquals(null, $opt->getOption()->getShortcut());
+        self::assertEquals(null, $opt->getOption()->getDefault());
+        self::assertEquals(null, $opt->getDefaultValue());
+        self::assertEquals('test', $opt->getOption()->getName());
+        self::assertEquals('test', $opt->getName());
+        self::assertFalse($opt->getOption()->isArray());
+        self::assertFalse($opt->getOption()->isNegatable());
+        self::assertFalse($opt->getOption()->isValueOptional());
+        self::assertTrue($opt->getOption()->isValueRequired());
+        self::assertTrue($opt->isScalar());
 
         $opt = new MappedOption('testb', OptionType::Boolean, 'bool test', 'B');
-        $this->assertEquals('bool test', $opt->getDescription());
-        $this->assertEquals('B', $opt->getOption()->getShortcut());
-        $this->assertEquals('testb', $opt->getOption()->getName());
-        $this->assertEquals('testb', $opt->getName());
-        $this->assertEquals(null, $opt->getDefaultValue());
-        $this->assertFalse($opt->getOption()->isArray());
-        $this->assertTrue($opt->getOption()->isNegatable());
-        $this->assertFalse($opt->getOption()->isValueOptional());
-        $this->assertFalse($opt->getOption()->isValueRequired());
-        $this->assertTrue($opt->isBool());
+        self::assertEquals('bool test', $opt->getDescription());
+        self::assertEquals('B', $opt->getOption()->getShortcut());
+        self::assertEquals('testb', $opt->getOption()->getName());
+        self::assertEquals('testb', $opt->getName());
+        self::assertEquals(null, $opt->getDefaultValue());
+        self::assertFalse($opt->getOption()->isArray());
+        self::assertTrue($opt->getOption()->isNegatable());
+        self::assertFalse($opt->getOption()->isValueOptional());
+        self::assertFalse($opt->getOption()->isValueRequired());
+        self::assertTrue($opt->isBool());
 
         $opt = new MappedOption('testb', OptionType::Boolean, 'bool test', 'B', true);
-        $this->assertEquals('bool test', $opt->getDescription());
-        $this->assertEquals('B', $opt->getOption()->getShortcut());
-        $this->assertEquals('testb', $opt->getOption()->getName());
-        $this->assertEquals('testb', $opt->getName());
-        $this->assertEquals(true, $opt->getDefaultValue());
+        self::assertEquals('bool test', $opt->getDescription());
+        self::assertEquals('B', $opt->getOption()->getShortcut());
+        self::assertEquals('testb', $opt->getOption()->getName());
+        self::assertEquals('testb', $opt->getName());
+        self::assertEquals(true, $opt->getDefaultValue());
 
         $opt = new MappedOption('test-arg', OptionType::Argument, 'arg test', required: true);
-        $this->assertEquals('arg test', $opt->getDescription());
-        $this->assertEquals('test-arg', $opt->getArgument()->getName());
-        $this->assertEquals('test-arg', $opt->getName());
-        $this->assertTrue($opt->isArgument());
+        self::assertEquals('arg test', $opt->getDescription());
+        self::assertEquals('test-arg', $opt->getArgument()->getName());
+        self::assertEquals('test-arg', $opt->getName());
+        self::assertTrue($opt->isArgument());
     }
     /**
      * test getArgument/getOption
@@ -104,23 +104,23 @@ class MappedOptionTest extends LogTestCase
     public function testGetInputElement()
     {
         $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A');
-        $this->assertEquals('this is a test option', $opt->getOption()->getDescription());
+        self::assertEquals('this is a test option', $opt->getOption()->getDescription());
         $msg = '';
         try {
             $opt->getArgument();
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals('Cannot getArgument() on InputOption', $msg);
+        self::assertEquals('Cannot getArgument() on InputOption', $msg);
         $opt = new MappedOption('test', OptionType::Argument, 'this is a test argument');
-        $this->assertEquals('this is a test argument', $opt->getArgument()->getDescription());
+        self::assertEquals('this is a test argument', $opt->getArgument()->getDescription());
         $msg = '';
         try {
             $opt->getOption();
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals('Cannot getOption() on InputArgument', $msg);
+        self::assertEquals('Cannot getOption() on InputArgument', $msg);
     }
     /**
      * test setInputOptions
@@ -134,7 +134,7 @@ class MappedOptionTest extends LogTestCase
     {
         $opt = new MappedOption('test', OptionType::Array, 'this is a test option', 'A', []);
         $opt->setCommand('foo');
-        $this->assertEquals('foo', $opt->getCommand());
+        self::assertEquals('foo', $opt->getCommand());
     }
     /**
      * test optionFromConfig
@@ -155,12 +155,12 @@ class MappedOptionTest extends LogTestCase
         /** @var MappedOption $option */
         $option = MappedOption::createFromConfig('test-scalar-opt', $scalarOpt);
         $inputOption = $option->getOption();
-        $this->assertEquals('test-scalar-opt', $inputOption->getName());
-        $this->assertEquals('T', $inputOption->getShortcut());
-        $this->assertEquals('this is a testing option', $inputOption->getDescription());
-        $this->assertEquals(null, $inputOption->getDefault());
-        $this->assertTrue($inputOption->isValueRequired());
-        $this->assertFalse($inputOption->isArray());
+        self::assertEquals('test-scalar-opt', $inputOption->getName());
+        self::assertEquals('T', $inputOption->getShortcut());
+        self::assertEquals('this is a testing option', $inputOption->getDescription());
+        self::assertEquals(null, $inputOption->getDefault());
+        self::assertTrue($inputOption->isValueRequired());
+        self::assertFalse($inputOption->isArray());
 
         // test 2 : array option
         $arrayOpt = [
@@ -170,12 +170,12 @@ class MappedOptionTest extends LogTestCase
         /** @var MappedOption $option */
         $option = MappedOption::createFromConfig('test-array-opt', $arrayOpt);
         $inputOption = $option->getOption();
-        $this->assertEquals('test-array-opt', $inputOption->getName());
-        $this->assertEquals(null, $inputOption->getShortcut());
-        $this->assertEquals(null, $inputOption->getDescription());
-        $this->assertEquals(['foo'], $inputOption->getDefault());
-        $this->assertTrue($inputOption->isValueRequired());
-        $this->assertTrue($inputOption->isArray());
+        self::assertEquals('test-array-opt', $inputOption->getName());
+        self::assertEquals(null, $inputOption->getShortcut());
+        self::assertEquals(null, $inputOption->getDescription());
+        self::assertEquals(['foo'], $inputOption->getDefault());
+        self::assertTrue($inputOption->isValueRequired());
+        self::assertTrue($inputOption->isArray());
 
         // test 3 : boolean option
         $boolOpt = [
@@ -184,12 +184,12 @@ class MappedOptionTest extends LogTestCase
         /** @var MappedOption $option */
         $option = MappedOption::createFromConfig('test-bool-opt', $boolOpt);
         $inputOption = $option->getOption();
-        $this->assertEquals('test-bool-opt', $inputOption->getName());
-        $this->assertEquals(null, $inputOption->getShortcut());
-        $this->assertEquals(null, $option->getDescription());
-        $this->assertEquals(null, $inputOption->getDefault());
-        $this->assertFalse($inputOption->isValueRequired());
-        $this->assertFalse($inputOption->isArray());
+        self::assertEquals('test-bool-opt', $inputOption->getName());
+        self::assertEquals(null, $inputOption->getShortcut());
+        self::assertEquals(null, $option->getDescription());
+        self::assertEquals(null, $inputOption->getDefault());
+        self::assertFalse($inputOption->isValueRequired());
+        self::assertFalse($inputOption->isArray());
 
         // test 4 : unknown type
         $badOpt = [
@@ -201,7 +201,7 @@ class MappedOptionTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Unknown option type 'foo' for option 'test-bad-opt'", $msg);
+        self::assertEquals("Unknown option type 'foo' for option 'test-bad-opt'", $msg);
 
         // test 5 : mismatch
         $badOpt = [
@@ -215,7 +215,7 @@ class MappedOptionTest extends LogTestCase
             $msg = $e->getMessage();
         }
         $error = "Error creating option bad-opt : A default value for an array option must be an array.";
-        $this->assertEquals($error, $msg);
+        self::assertEquals($error, $msg);
 
         // test 6 : no type at all
         $badOpt = [];
@@ -225,6 +225,6 @@ class MappedOptionTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals("Missing option type for test-bad-opt", $msg);
+        self::assertEquals("Missing option type for test-bad-opt", $msg);
     }
 }

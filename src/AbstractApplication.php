@@ -15,6 +15,7 @@ use DgfipSI1\Application\Exception\NoNameOrVersionException;
 use DgfipSI1\Application\Exception\RuntimeException;
 use DgfipSI1\Application\Utils\ApplicationLogger;
 use DgfipSI1\Application\Utils\ClassDiscoverer;
+use DgfipSI1\Application\Utils\MakePharCommand;
 use DgfipSI1\ConfigHelper\ConfigHelper;
 use League\Container\Container;
 use League\Container\ContainerAwareTrait;
@@ -77,22 +78,22 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
     {
         parent::__construct();
         // initialize directories
-        if (!empty($argv)) {
+        if (sizeof($argv) > 0) {
             $this->entryPoint = $argv[0];
             $this->homeDir    = (string) realpath(dirname($argv[0]));
         } else {
             $this->entryPoint = '';
-            $this->homeDir    = (string) realpath(__DIR__.str_repeat(DIRECTORY_SEPARATOR.'..', 4));
+            $this->homeDir    = (string) getcwd();
         }
         $this->currentDir = (string) getcwd();
-        $this->pharRoot = Phar::running(true);
+        $this->pharRoot = MakePharCommand::getPharRoot();
 
         // initialize input and output
         $this->input  = new ArgvInput($argv);
         $this->output = new \Symfony\Component\Console\Output\ConsoleOutput();
         $this->output->setVerbosity(ApplicationLogger::getVerbosity($this->input));
 
-        // setup a temporary logger
+        // setup a logger
         $this->logger = ApplicationLogger::initLogger($this->output);
         // setup app internal configuration
         $this->setupApplicationConfig();
@@ -105,10 +106,12 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $this->container = new Container();
         $disc = new ClassDiscoverer($classLoader);
         $disc->setContainer($this->container);
+        $disc->setLogger($this->getLogger());
         $this->container->addShared('class_discoverer', $disc);
 
         $this->namespaces = [];
         $this->mappedOptions = [];
+        $this->setAutoExit(false);
     }
     /**
      * sets the application name
@@ -275,11 +278,22 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
      *
      * @return void
      */
-    public function discoverClasses($namespaces, $tag, $deps, $excludeDeps = [], $idAttribute = null, $emptyOk = true)
+    public function addDiscoveries($namespaces, $tag, $deps, $excludeDeps = [], $idAttribute = null, $emptyOk = true)
     {
         /** @var ClassDiscoverer $disc */
         $disc = $this->getContainer()->get('class_discoverer');
         $disc->addDiscoverer($namespaces, $tag, $deps, $excludeDeps, $idAttribute, $emptyOk);
+    }
+    /**
+     * discovers classes previously added for discovery
+     *
+     * @return void
+     */
+    public function discoverClasses()
+    {
+        /** @var ClassDiscoverer $disc */
+        $disc = $this->getContainer()->get('class_discoverer');
+        $disc->discoverAllClasses();
     }
     /**
      * Verify that we have an application name and version
@@ -288,19 +302,19 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
      */
     protected function setApplicationNameAndVersion()
     {
-        if (!$this->appName) {
+        if (null === $this->appName) {
             /** @var string $appName */
             $appName = $this->intConfig->get(CONF::APPLICATION_NAME);
             $this->appName = $appName;
-            if (!$this->appName) {
+            if (null === $this->appName) {
                 throw new NoNameOrVersionException("Application name missing");
             }
         }
-        if (!$this->appVersion) {
+        if (null === $this->appVersion) {
             /** @var string $appVersion */
             $appVersion = $this->intConfig->get(CONF::APPLICATION_VERSION);
             $this->appVersion = $appVersion;
-            if (!$this->appVersion) {
+            if (null === $this->appVersion) {
                 throw new NoNameOrVersionException("Version missing");
             }
         }
@@ -319,9 +333,9 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $internalConfSchema = new ApplicationSchema();
         $this->intConfig    = new ConfigHelper($internalConfSchema);
         $defaultConfigFiles = [
-            $this->getPharRoot().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
-            $this->getHomeDir().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
             $this->getCurrentDir().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $this->getHomeDir().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
+            $this->getPharRoot().DIRECTORY_SEPARATOR.self::DEFAULT_APP_CONFIG_FILE,
         ];
         $logContext = [ 'name' => 'new Application()' ];
         $loaded = false;

@@ -28,6 +28,7 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  * @uses DgfipSI1\Application\Config\OptionType
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
+ * @uses DgfipSI1\Application\Utils\MakePharCommand
  */
 class ConfiguredApplicationTraitTest extends LogTestCase
 {
@@ -35,7 +36,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
     }
     /**
@@ -75,7 +76,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
 
         /** @var ConfigurationInterface $cmd */
         $config = new ConfigHelper($cmd);
-        $this->assertEquals($DUMP, $config->dumpSchema());
+        self::assertEquals($DUMP, $config->dumpSchema());
     }
     /**
      * @covers DgfipSI1\Application\Config\ConfiguredApplicationTrait::schemaFromOptions
@@ -113,9 +114,9 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $app->addMappedOption(new MappedOption('argument', OptionType::Argument, 'argument', default: 'foo'));
 
         $config = new ConfigHelper($cmd);
-        $this->assertEquals($DUMP, $config->dumpSchema());
+        self::assertEquals($DUMP, $config->dumpSchema());
 
-        $this->assertInstanceOf(TreeBuilder::class, $cmd->schemaFromOptions());
+        self::assertInstanceOf(TreeBuilder::class, $cmd->schemaFromOptions());
     }
     /**
      * @covers DgfipSI1\Application\Config\ConfiguredApplicationTrait::getOptionValue
@@ -129,16 +130,16 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $notCmd = new HelloWorldSchema();
         $notCmd->setConfig($cmd->getConfig());
 
-        $this->assertNull($cmd->getOptionValue('foo'));
-        $this->assertNull($notCmd->getOptionValue('foo'));
+        self::assertNull($cmd->getOptionValue('foo'));
+        self::assertNull($notCmd->getOptionValue('foo'));
 
         $cmd->getConfig()->set('options.foo', 'bar from global');
-        $this->assertEquals('bar from global', $cmd->getOptionValue('foo'));
+        self::assertEquals('bar from global', $cmd->getOptionValue('foo'));
 
         $cmd->getConfig()->set('commands.hello.options.foo', 'bar from hello');
-        $this->assertEquals('bar from hello', $cmd->getOptionValue('foo'));
+        self::assertEquals('bar from hello', $cmd->getOptionValue('foo'));
 
-        $this->assertEquals('bar from global', $notCmd->getOptionValue('foo'));
+        self::assertEquals('bar from global', $notCmd->getOptionValue('foo'));
     }
 
     /**
@@ -149,7 +150,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
     public function testGetConfigOptions()
     {
         $trait = new HelloWorldAutoSchema();
-        $this->assertEquals([], $trait->getConfigOptions());
+        self::assertEquals([], $trait->getConfigOptions());
     }
     /**
      * @covers DgfipSI1\Application\Config\ConfiguredApplicationTrait::getConfiguredApplication
@@ -167,11 +168,11 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        $this->assertEquals('No application has been set.', $msg);
+        self::assertEquals('No application has been set.', $msg);
 
         $loaders = array_values(ClassLoader::getRegisteredLoaders());
         $app = new SymfonyApplication($loaders[0], []);
         $cmd->getContainer()->addShared('application', $app);
-        $this->assertEquals($app, $cmd->getConfiguredApplication());
+        self::assertEquals($app, $cmd->getConfiguredApplication());
     }
 }

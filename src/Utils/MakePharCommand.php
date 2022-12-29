@@ -6,8 +6,7 @@ namespace DgfipSI1\Application\Utils;
 
 use Composer\Console\Application;
 use DgfipSI1\Application\Command;
-use DgfipSI1\Application\Config\MappedOption;
-use DgfipSI1\Application\Config\OptionType;
+use DgfipSI1\Application\Utils\DirectoryStasher;
 use DgfipSI1\Application\Exception\RuntimeException;
 use Phar;
 use RecursiveCallbackFilterIterator;
@@ -24,18 +23,27 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class MakePharCommand extends Command
 {
-    /** @var array<string,string> $logCtx */
-    public $logCtx = ['name' => 'make-phar'];
-
     /** @var array<string> $testFiles */
-    public $testFiles     = ['tests', 'phpcs.xml', 'phpstan.neon.dist', 'phpunit.xml'];
+    protected $testFiles     = ['tests', 'phpcs.xml', 'phpstan.neon.dist', 'phpunit.xml'];
     /** @var array<string> $devFiles */
-    public $devFiles      = ['.git', '.gitignore', '.vscode'  ];
+    protected $devFiles      = ['.git', '.gitignore', '.vscode'  ];
     /** @var array<string> $composerFiles */
-    public $composerFiles = ['bin', 'composer.json', 'composer.lock'];
+    protected $composerFiles = ['bin', 'vendor'];
     /** @var array<string> $variousFiles */
-    public $variousFiles  = [ 'README.md' ];
+    protected $variousFiles  = [ 'README.md', 'CONTRIBUTING.md' ];
+    /** @var array<string> $pharExcludes */
+    protected $pharExcludes  = [ 'vendor/bin', 'composer.lock', 'composer.json'];
 
+
+    /**
+     * sets the pharRoot directory
+     *
+     * @return string
+     */
+    public static function getPharRoot()
+    {
+        return Phar::running();
+    }
     /**
      * @inheritDoc
      *
@@ -82,23 +90,35 @@ EOH
     public function execute(InputInterface $input, OutputInterface $output)
     {
         $entryPoint     = $this->getConfiguredApplication()->getEntryPoint();
-        $configExcludes = $this->getConfiguredApplication()->getPharExcludes();
-
-        $pharFile       = basename($entryPoint.'.phar');
-        $this->logCtx = ['name' => 'make-phar', 'file' => $pharFile];
-
-        $builtinExcludes = array_merge($this->testFiles, $this->devFiles, $this->composerFiles, $this->variousFiles);
-        $excludes = array_merge($configExcludes, $builtinExcludes);
-
         if ($this->pharReadonly()) {
             $msg = "Creating phar disabled by the php.ini setting 'phar.readonly'. Try this :\n";
             $msg .= "   php -d phar.readonly=0 $entryPoint make-phar\n";
             throw new RuntimeException("$msg");
         }
-        $this->composerRun(['install', '--no-dev']);
-        $this->makePhar($pharFile, $entryPoint, $excludes);
-        $this->composerRun(['install']);
-        $this->getLogger()->notice("{file} successfully created", $this->logCtx);
+        if (null !== $this->getConfig()->get('commands.make_phar.options.phar_file')) {
+            $pharFile = $this->getConfig()->get('commands.make_phar.options.phar_file');
+        } else {
+            $pharFile       = getcwd().DIRECTORY_SEPARATOR.basename($entryPoint.'.phar');
+        }
+        $logCtx = ['name' => 'make-phar', 'file' => $pharFile];
+        /** @var string $pharFile */
+        if (file_exists($pharFile)) {
+            unlink($pharFile);
+            $this->getLogger()->notice("removing old phar : {file}", $logCtx);
+        }
+        $dirStasher = new DirectoryStasher();
+        $callBacks = [];
+        $stashDir = '/tmp/stash';
+        $composerOpts = [ 'install', '--working-dir', $stashDir, '--no-dev' ];
+        $callBacks[] = [ [ $this       , 'composerRun'     ], $composerOpts ];
+        $callBacks[] = [ [ $dirStasher , 'resolveSymlinks' ], [ ] ];
+        $dirStasher->stash('.', $stashDir, $this->getStashExcludedFiles(), $callBacks);
+
+        $this->makePhar($pharFile, $stashDir, $entryPoint, $this->pharExcludes);
+
+        $dirStasher->cleanup();
+        $this->getLogger()->notice("Phar file created : {file}", $logCtx);
+
 
         return 0;
     }
@@ -106,17 +126,68 @@ EOH
      * executes composer command with given args
      * @param array<string> $argv
      *
-     * @return void
+     * @return int
      */
-    protected function composerRun($argv)
+    public function composerRun($argv)
     {
-        $this->getLogger()->notice("Running composer ".implode(' ', $argv), $this->logCtx);
+        $this->getLogger()->notice("Running composer ".implode(' ', $argv), ['name' => 'make-phar']);
         $composerAppli  = new Application();
         $composerAppli->setAutoExit(false);
+
         array_unshift($argv, 'composer');
         array_push($argv, '-q');
         $input = new ArgvInput($argv);
-        $composerAppli->run($input);
+
+        return $composerAppli->run($input);
+    }
+    /**
+     * make phar
+     *
+     * @param string        $pharFile
+     * @param string        $directory
+     * @param string        $entryPoint
+     * @param array<string> $excludes
+     *
+     * @return void
+     */
+    protected function makePhar($pharFile, $directory, $entryPoint, $excludes)
+    {
+        $logCtx = ['name' => 'make-phar', 'file' => $pharFile];
+        $this->getLogger()->notice("Creating phar : {file}", $logCtx);
+        $fullName = $directory.DIRECTORY_SEPARATOR.$pharFile;
+        $phar = $this->initPhar($fullName);
+        if (null !== $phar) {
+            // start buffering. Mandatory to modify stub to add shebang
+            $phar->startBuffering();
+            // Create the default stub from main.php entrypoint
+            $defaultStub = Phar::createDefaultStub(basename($entryPoint));
+            $phar->buildFromIterator($this->getIterator($excludes, $directory), $directory);
+            // Customize the stub to add the shebang
+            $stub = "#!/usr/bin/env php\n".$defaultStub;
+            // Add the stub
+            $phar->setStub($stub);
+            $phar->stopBuffering();
+            // plus - compressing it into gzip
+            $phar->compressFiles(Phar::GZ);
+            // Make the file executable
+            if (!file_exists($fullName)) {
+                throw new RuntimeException("Phar file wasn't created");
+            }
+            chmod($fullName, 0770);
+        }
+    }
+    /**
+     * get list of files to exclude from stash directory
+     *
+     * @return array<string>
+     */
+    protected function getStashExcludedFiles()
+    {
+        $configExcludes = $this->getConfiguredApplication()->getPharExcludes();
+        $builtinExcludes = array_merge($this->testFiles, $this->devFiles, $this->composerFiles, $this->variousFiles);
+        $excludes = array_merge($configExcludes, $builtinExcludes);
+
+        return $excludes;
     }
     /**
      * get phar.readonly parameter in php.ini
@@ -151,45 +222,6 @@ EOH
         return new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator($innerIterator, $filter));
     }
     /**
-     * make phar
-     *
-     * @param string        $pharFile
-     * @param string        $entryPoint
-     * @param array<string> $excludes
-     *
-     * @return void
-     */
-    protected function makePhar($pharFile, $entryPoint, $excludes)
-    {
-        $directory      = (string) dirname($entryPoint);
-        $fullName       = $directory.DIRECTORY_SEPARATOR.$pharFile;
-        if (file_exists($fullName)) {
-            unlink($fullName);
-            $this->getLogger()->notice("removing old phar : {file}", $this->logCtx);
-        }
-        $this->getLogger()->notice("Creating phar : {file}", $this->logCtx);
-        $phar = $this->initPhar($pharFile);
-        if (null !== $phar) {
-            // start buffering. Mandatory to modify stub to add shebang
-            $phar->startBuffering();
-            // Create the default stub from main.php entrypoint
-            $defaultStub = $phar->createDefaultStub(basename($entryPoint));
-            $phar->buildFromIterator($this->getIterator($excludes, $directory), $directory);
-            // Customize the stub to add the shebang
-            $stub = "#!/usr/bin/env php\n".$defaultStub;
-            // Add the stub
-            $phar->setStub($stub);
-            $phar->stopBuffering();
-            // plus - compressing it into gzip
-            $phar->compressFiles(Phar::GZ);
-            // Make the file executable
-            chmod($fullName, 0770);
-            if (!file_exists($fullName)) {
-                throw new RuntimeException("Phar file wasn't created");
-            }
-        }
-    }
-    /**
      * initPhar : initialize phar object
      *
      * @param string $pharFile
@@ -198,10 +230,11 @@ EOH
      */
     protected function initPhar($pharFile)
     {
+        $logCtx = ['name' => 'make-phar', 'file' => $pharFile];
         try {
             $phar = new Phar($pharFile);
         } catch (\Exception $e) {
-            $this->getLogger()->alert("Can't create phar : {file}", $this->logCtx);
+            $this->getLogger()->alert("Can't create phar : {file}", $logCtx);
             $phar = null;
         }
 

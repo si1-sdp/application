@@ -73,12 +73,12 @@ class ApplicationLogger
      */
     public static function configureLogger($logger, $config, $homeDir)
     {
-        $logDirectory = $config->get(CONF::LOG_DIRECTORY);
         if (!$logger instanceof Monolog) {
             $logger->alert("Advanced logger configuration applies only to Monolog");
 
             return;
         }
+        $logDirectory = $config->get(CONF::LOG_DIRECTORY);
         if (is_string($logDirectory)) {
             if (substr($logDirectory, 0, 1) !== '/' && strpos($logDirectory, '://') === false) {
                 $logDirectory = (string) realpath($homeDir).DIRECTORY_SEPARATOR.$logDirectory;
@@ -138,7 +138,7 @@ class ApplicationLogger
                 $verbosity = OutputInterface::VERBOSITY_DEBUG;
             } elseif ($input->hasParameterOption('-vv', true) || $v2 || 2 === $v) {
                 $verbosity = OutputInterface::VERBOSITY_VERY_VERBOSE;
-            } elseif ($input->hasParameterOption('-v', true) || $v1 || $vv || $v) {
+            } elseif ($input->hasParameterOption('-v', true) || $v1 || $vv || (bool) $v) {
                 $verbosity = OutputInterface::VERBOSITY_VERBOSE;
             }
         }

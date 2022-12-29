@@ -42,7 +42,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Config\InputOptionsInjector
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
- *
+ * @uses DgfipSI1\Application\Utils\MakePharCommand
  */
 class InputOptionsInjectorTest extends LogTestCase
 {
@@ -52,7 +52,7 @@ class InputOptionsInjectorTest extends LogTestCase
      * @inheritDoc
      *
      */
-    public function setup(): void
+    public function setUp(): void
     {
         $this->class = new ReflectionClass(InputOptionsInjector::class);
     }
@@ -74,7 +74,7 @@ class InputOptionsInjectorTest extends LogTestCase
     public function testGetSubscribedEvents()
     {
         $events = InputOptionsInjector::getSubscribedEvents();
-        $this->assertArrayHasKey(ConsoleEvents::COMMAND, $events);
+        self::assertArrayHasKey(ConsoleEvents::COMMAND, $events);
     }
     /**
      * test handleCommandEvent without command
@@ -159,7 +159,7 @@ class InputOptionsInjectorTest extends LogTestCase
      */
     public function testToString($data, $expect)
     {
-        $this->assertEquals($expect, InputOptionsInjector::toString($data));
+        self::assertEquals($expect, InputOptionsInjector::toString($data));
     }
     /**
      * test manageCommandOptions
@@ -367,27 +367,25 @@ class InputOptionsInjectorTest extends LogTestCase
                         $optName = "--$name";
                     }
                 }
-                if (null !== $optValue) {
-                    switch ($type) {
-                        case 'boolean':
-                            $args = [ $optName ];
-                            break;
-                        case 'scalar':
-                            /** @var string $optValue */
-                            $args = [ "$optName", "$optValue" ];
-                            break;
-                        case 'argument':
-                            /** @var string $optValue */
-                            $args = [ "$optValue" ];
-                            break;
-                        case 'array':
-                            /** @var array<string> $optValue */
-                            foreach ($optValue as $value) {
-                                $args[] = "$optName";
-                                $args[] = "$value";
-                            }
-                            break;
-                    }
+                switch ($type) {
+                    case 'boolean':
+                        $args = [ $optName ];
+                        break;
+                    case 'scalar':
+                        /** @var string $optValue */
+                        $args = [ "$optName", "$optValue" ];
+                        break;
+                    case 'argument':
+                        /** @var string $optValue */
+                        $args = [ "$optValue" ];
+                        break;
+                    case 'array':
+                        /** @var array<string> $optValue */
+                        foreach ($optValue as $value) {
+                            $args[] = "$optName";
+                            $args[] = "$value";
+                        }
+                        break;
                 }
                 $args = array_merge([ "./test", "command" ], $args);
                 $tests[] = $args;
@@ -417,11 +415,11 @@ class InputOptionsInjectorTest extends LogTestCase
             if (null === $expect && 'array' === $type) {
                 $expect = [];
             }
-            $this->assertEquals($expect, $config->get($key));
+            self::assertEquals($expect, $config->get($key));
             if ('argument' === $type) {
-                $this->assertEquals($expect, $input->getArgument($name));
+                self::assertEquals($expect, $input->getArgument($name));
             } else {
-                $this->assertEquals($expect, $input->getOption($name));
+                self::assertEquals($expect, $input->getOption($name));
             }
         }
     }
@@ -443,21 +441,21 @@ class InputOptionsInjectorTest extends LogTestCase
         // test with multi arguments
         $event = $this->createEvent(['./test', '-D', 'options.test_opt=bar', '-D', 'options.test2=value2'], true);
         $method->invokeArgs($injector, [$event]);
-        $this->assertEquals('bar', $config->get('options.test_opt'));
-        $this->assertEquals('value2', $config->get('options.test2'));
+        self::assertEquals('bar', $config->get('options.test_opt'));
+        self::assertEquals('value2', $config->get('options.test2'));
 
         // test with one argument
         $event = $this->createEvent(['./test', '-D', 'options.test_opt=bar'], true);
         $config->set('options', []);
         $method->invokeArgs($injector, [$event]);
-        $this->assertEquals('bar', $config->get('options.test_opt'));
-        $this->assertEquals(null, $config->get('options.test2'));
+        self::assertEquals('bar', $config->get('options.test_opt'));
+        self::assertEquals(null, $config->get('options.test2'));
 
         // test with no argument
         $event = $this->createEvent(['./test', '-D', 'options.test_opt=bar'], false);
         $config->set('options', []);
         $method->invokeArgs($injector, [$event]);
-        $this->assertEquals(null, $config->get('options.test_opt'));
+        self::assertEquals(null, $config->get('options.test_opt'));
     }
     /**
      * test splitConfigKeyValue
@@ -473,9 +471,9 @@ class InputOptionsInjectorTest extends LogTestCase
         $method->setAccessible(true);
 
         $res = $method->invokeArgs($injector, ['foo=bar']);
-        $this->assertEquals(['foo', 'bar', true], $res);
+        self::assertEquals(['foo', 'bar', true], $res);
         $res = $method->invokeArgs($injector, ['foo']);
-        $this->assertEquals(['foo', true], $res);
+        self::assertEquals(['foo', true], $res);
     }
     /**
      * creates a fully equiped loader
