@@ -6,7 +6,10 @@ namespace DgfipSI1\Application\Config;
 
 use Consolidation\AnnotatedCommand\Attributes\Option;
 use DgfipSI1\Application\Exception\RuntimeException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 
 /**
@@ -48,7 +51,9 @@ class MappedOption
      */
     public function __construct($name, $type, $description = '', $optShort = null, $default = null, $required = false)
     {
-        $this->name         = $name;
+        $ioName = str_replace('_', '-', $name);
+        $confName = self::getConfName($name);
+        $this->name         = $confName;
         $this->type         = $type;
         $this->description  = $description;
         $this->required     = $required;
@@ -60,20 +65,20 @@ class MappedOption
             }
         }
         $this->defaultValue = $default;
-        $name = str_replace('_', '-', $name);
         $mode = $type->mode($required);
         if (OptionType::Argument !== $type) {
             if (OptionType::Boolean === $type) {
                 if (true === $default) {
-                    $description = $description." <comment>[default : true, use --no-$name to set to false]</comment>";
+                    $comment = " <comment>[default : true, use --no-$ioName to set to false]</comment>";
                 } else {
-                    $description = $description." <comment>[default : false]</comment>";
+                    $comment = " <comment>[default : false]</comment>";
                 }
+                $description = $description.$comment;
                 $default = null;
             }
-            $this->input = new InputOption($name, $optShort, $mode, $description, $default);
+            $this->input = new InputOption($ioName, $optShort, $mode, $description, $default);
         } else {
-            $this->input = new InputArgument($name, $mode, $description, $default);
+            $this->input = new InputArgument($ioName, $mode, $description, $default);
         }
     }
 
@@ -104,8 +109,6 @@ class MappedOption
             $option = new MappedOption($name, $type, $optDesc, $shortOpt, $optDefault, $required);
         } catch (\ValueError $e) {
             throw new RuntimeException(sprintf("Unknown option type '%s' for option '%s'", $optType, $name));
-        } catch (\Exception $e) {
-            throw new RuntimeException(sprintf('Error creating option %s : %s', $name, $e->getMessage()));
         }
 
         return $option;
@@ -213,5 +216,49 @@ class MappedOption
     public function isArgument(): bool
     {
         return (OptionType::Argument === $this->type);
+    }
+    /**
+     * get configHelper compatible option name
+     *
+     * @param string $name
+     *
+     * @return string
+     */
+    public static function getConfName($name)
+    {
+        return str_replace(['.', '-' ], '_', $name);
+    }
+    /**
+     *
+     *
+     * @param InputInterface $input
+     *
+     * @return mixed
+     */
+    public function getDefaultFreeInputValue($input)
+    {
+        $definition = new InputDefinition();
+        $clonedInput = clone($input);
+        if ($this->isArgument()) {
+            $name = $this->getArgument()->getName();
+            $definition = new InputDefinition([
+                new InputArgument('command', InputArgument::REQUIRED, 'The command name'),
+                new InputArgument($name, $this->type->mode($this->required)),
+            ]);
+            InputOptionsSetter::safeBind($clonedInput, $definition);
+
+            $value = $clonedInput->getArgument($name);
+        } else {
+            $name = $this->getOption()->getName();
+            $definition = new InputDefinition([
+                new InputArgument('command', InputArgument::REQUIRED, 'The command name'),
+                new InputOption($name, $this->getOption()->getShortcut(), $this->type->mode($this->required)),
+            ]);
+            InputOptionsSetter::safeBind($clonedInput, $definition);
+
+            $value = $clonedInput->getOption($name);
+        }
+
+        return $value;
     }
 }

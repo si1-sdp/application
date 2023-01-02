@@ -104,7 +104,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         if ($this->getContainer()->has(AbstractApplication::GLOBAL_CONFIG_TAG)) {
             /** @var array<ConfiguredApplicationInterface> $globalConfigurators */
             $globalConfigurators = $this->getContainer()->get(AbstractApplication::GLOBAL_CONFIG_TAG);
-            $configurators = array_merge($configurators, $globalConfigurators) ;
+            $configurators = $globalConfigurators;
         }
         if ($this->getContainer()->has(AbstractApplication::COMMAND_CONFIG_TAG)) {
             /** @var array<ConfiguredApplicationInterface> $commandConfigurators */
@@ -135,7 +135,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             /** @var string $filename */
             $filename = $event->getInput()->getOption('config');
             if ('' !== $filename && file_exists($filename)) {
-                $logCtx = [ 'file' => $filename];
+                $logCtx = [ 'name' => 'loadConfigFromOptions', 'file' => $filename];
                 $this->getLogger()->debug("Loading configfile: {file}", $logCtx);
                 $config->addFile($filename);
             } else {
@@ -168,6 +168,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
         if (sizeof($dirs) === 0 && true === $askedConfig) {
             throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $rootDirectory));
         }
+        $logCtx['dirs']  = "[".implode(', ', $dirs)."]";
         $logCtx['paths'] = "[".((bool) $this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";
         $logCtx['names'] = "[".((bool) $this->namePatterns ? implode(', ', $this->namePatterns) : '')."]";
         $logCtx['sort']  = $this->sortByName ? 'name' : 'path';
@@ -187,18 +188,18 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
     protected function getDirectories($configDir, $app)
     {
         $directories = [];
-        // relative path ? try under every possible root directory
-        if (substr($configDir, 0, 1) !== '/' && strpos($configDir, '://') === false) {
-            foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
-                $fullDir = $dir.DIRECTORY_SEPARATOR.$configDir;
-                if (is_dir($fullDir) && !in_array($fullDir, $directories, true)) {
-                    $directories[] = $dir.DIRECTORY_SEPARATOR.$configDir;
-                }
-            }
         // absolute path, just make sure we're an array
-        } else {
+        if (str_starts_with($configDir, '/') || strpos($configDir, '://') !== false) {
             if (is_dir($configDir)) {
                 $directories = [$configDir];
+            }
+        // relative path ? try under every possible root directory
+        } else {
+            foreach ([$app->getPharRoot(), $app->getHomeDir(), $app->getCurrentDir()] as $dir) {
+                $fullDir = "$dir/$configDir";
+                if (is_dir($dir) && is_dir($fullDir) && !in_array($fullDir, $directories, true)) {
+                    $directories[] = $fullDir;
+                }
             }
         }
 
@@ -220,7 +221,7 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             $filenames = $event->getInput()->getOption('add-config');
             foreach ($filenames as $file) {
                 if (file_exists($file)) {
-                    $logCtx = [ 'file' => $file];
+                    $logCtx = [ 'name' => 'addConfigFromOptions', 'file' => $file];
                     $this->getLogger()->debug("Adding configfile: {file}", $logCtx);
                     $config->addFile($file);
                 } else {

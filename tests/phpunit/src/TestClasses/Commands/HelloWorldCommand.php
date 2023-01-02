@@ -12,7 +12,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * class HelloWorldCommand : provides the hello world symfony command
  */
-#[AsCommand(name: 'hello', description: 'A symfony command hello world example')]
+#[AsCommand(name: 'hello-world', description: 'A symfony command hello world example')]
 class HelloWorldCommand extends Command
 {
      /**

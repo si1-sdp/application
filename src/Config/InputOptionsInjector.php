@@ -8,8 +8,8 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use DgfipSI1\Application\Command as appCommand;
 
 /**
  * envent subscriber that loads all input options values into config
@@ -82,13 +82,12 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
     {
         // don't manage builtin commands
         $commandName = (string) $command->getName();
-        $logCtx = ['name' => 'manageCommand '.$commandName.'Options'];
+        $logCtx = ['name' => 'manageCommand '.$commandName.' options'];
         if (!$this->getContainer()->has($commandName)) {
             $this->getLogger()->debug("Skipping $commandName (not in container)", $logCtx);
 
             return;
         }
-        $commandName = (string) $command->getName();
         $mappedOptions = $this->getConfiguredApplication()->getMappedOptions($commandName);
         $this->getLogger()->debug("Synchronizing config and inputOptions", $logCtx);
         foreach ($mappedOptions as $option) {
@@ -133,23 +132,28 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             $prefix = 'options';
             $caller = 'manageGlobalOptions';
         } else {
-            $prefix = "commands.".str_replace(':', '_', $command).".options";
+            $prefix = "commands.".AppCommand::getConfName($command).".options";
             $caller = "manage $command options";
         }
-        $optName = str_replace('_', '-', $mappedOpt->getName());
-        $key = $prefix.'.'.str_replace(['.', '-' ], '_', $optName);
-        if ($mappedOpt->isArgument()) {
-            $inputValue = $input->getArgument($optName);
-        } else {
-            $inputValue = $input->getOption($optName);
-            if ($mappedOpt->isArray() && [] === $inputValue) {
-                $inputValue = null;
-            }
+        //
+        // GET OPTION VALUE FROM COMMAND LINE
+        //
+        $inputValue = $mappedOpt->getDefaultFreeInputValue($input);
+        if ($mappedOpt->isArray() && [] === $inputValue) {
+            $inputValue = null;
         }
+        //
+        // GET OPTION VALUE FROM CONFIGURATION
+        //
+        $key = $prefix.'.'.$mappedOpt->getName();
         /** @var array<mixed>|bool|float|int|string|null $confValue */
         $confValue = $this->getConfig()->get($key);
+
         $confStr = self::toString($confValue);
         $logCtx = ['name' => $caller, 'key' => $key, 'input' => self::toString($inputValue), 'conf' => $confStr];
+    // print("\n(I)INPUT VALUE : ".self::toString($inputValue)."\n");
+    // print("(I)CONFIG VALUE : ".self::toString($confValue)."\n");
+    // print_r($logCtx);
         $this->getLogger()->debug("{key} => INPUT : {input} - CONFIG : {conf}", $logCtx);
         if (null === $inputValue) {
             if (null === $confValue) {
@@ -187,9 +191,6 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
                 $input->setOption($mappedOpt->getOption()->getName(), $value);
             }
             $this->getLogger()->debug("    => INPUT->SET('{key}',  {value})", $logCtx);
-        }
-        if ($mappedOpt->isBool()) {
-            $input->setOption($mappedOpt->getOption()->getName(), (bool) $value);
         }
     }
     /**

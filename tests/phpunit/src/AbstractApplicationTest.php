@@ -165,6 +165,7 @@ class AbstractApplicationTest extends LogTestCase
         /** @var ClassDiscoverer $disc */
         $disc = $app->getContainer()->get('class_discoverer');
         self::assertEquals($disc->getContainer(), $app->getContainer());
+        self::assertInstanceOf(LoggerInterface::class, $disc->getLogger());
 
         $ae = $this->pp->getProperty('autoExit');
         $ae->setAccessible(true);

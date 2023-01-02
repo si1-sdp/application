@@ -68,6 +68,9 @@ class DirectoryStasherTest extends LogTestCase
         $bd = $this->class->getProperty('baseDir');
         $bd->setAccessible(true);
         self::assertEquals(getcwd(), $bd->getValue($stash));
+
+        $stash = $this->createStasher('/');
+        self::assertEquals('/', $bd->getValue($stash));
     }
     /**
      * @covers \DgfipSI1\Application\Utils\DirectoryStasher::stash
@@ -87,7 +90,7 @@ class DirectoryStasherTest extends LogTestCase
         $dest = $this->root->url().DIRECTORY_SEPARATOR.'dest';
 
         /** @var \Mockery\MockInterface $stash */
-        $stash = $this->createStasher(true);
+        $stash = $this->createStasher(mock: true);
         $stash->shouldReceive('ensurePrerequisitesAreMet')->once();
         $stash->shouldReceive('cleanupExtraFilesInDestination')
             ->with($dest, $src, ['foo', 'bar'])
@@ -248,12 +251,16 @@ class DirectoryStasherTest extends LogTestCase
         $ctd = $this->class->getMethod('copyToDestination');
         $ctd->setAccessible(true);
 
+
+
         $stash = $this->createStasher();
         $this->populateVfsTree();
         $src = $this->root->url().DIRECTORY_SEPARATOR.'src';
         $dest = $this->root->url().DIRECTORY_SEPARATOR.'dest';
-        $ctd->invokeArgs($stash, [$src, $dest, []]);
 
+        $cefid->invokeArgs($stash, [ $dest, $src, []]); // should do nothing as destination is empty
+
+        $ctd->invokeArgs($stash, [$src, $dest, []]);
         $sourceFile = $src.DIRECTORY_SEPARATOR.'D2'.DIRECTORY_SEPARATOR.'f2.txt';
         $destFile = $dest.DIRECTORY_SEPARATOR.'D2'.DIRECTORY_SEPARATOR.'f2.txt';
 
@@ -433,11 +440,12 @@ class DirectoryStasherTest extends LogTestCase
     }
     /**
      * creates a fully equiped directoryStasher
-     *  @param bool $mock
+     *  @param string $baseDir
+     *  @param bool   $mock
      *
      * @return DirectoryStasher;
      */
-    public function createStasher($mock = false)
+    public function createStasher($baseDir = null, $mock = false)
     {
         if ($mock) {
             /** @var \Mockery\MockInterface $stash */
@@ -451,7 +459,11 @@ class DirectoryStasherTest extends LogTestCase
             $bd->setAccessible(true);
             $bd->setValue($stash, (string) getcwd());
         } else {
-            $stash = new DirectoryStasher();
+            if (null === $baseDir) {
+                $stash = new DirectoryStasher();
+            } else {
+                $stash = new DirectoryStasher($baseDir);
+            }
         }
         /** @var DirectoryStasher $stash */
         // $stash->setContainer(new Container());

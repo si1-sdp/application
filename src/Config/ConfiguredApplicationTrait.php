@@ -34,10 +34,10 @@ trait ConfiguredApplicationTrait
         $treeBuilder = new TreeBuilder('');
         $options = [];
         if ($this instanceof Command) {
-            $name = str_replace(':', '_', (string) $this->getName());
+            $name = Command::getConfName((string) $this->getName());
             $treeBuilder = new TreeBuilder("commands/$name/options");
             $options = $this->getConfiguredApplication()->getMappedOptions($this->getName());
-        } elseif ($this instanceof ConfiguredApplicationInterface) {  /** @phpstan-ignore-line */
+        } else {
             $treeBuilder = new TreeBuilder("options");
             $options = $this->getConfiguredApplication()->getMappedOptions();
         }
@@ -74,7 +74,7 @@ trait ConfiguredApplicationTrait
     public function getOptionValue($arg)
     {
         if ($this instanceof Command) {
-            $name = str_replace(':', '_', (string) $this->getName());
+            $name = Command::getConfName((string) $this->getName());
             $key = "commands.$name.options.$arg";
             if (null !== $this->getConfig()->get($key)) {
                 return $this->getConfig()->get($key);

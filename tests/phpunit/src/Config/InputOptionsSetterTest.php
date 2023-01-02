@@ -38,6 +38,7 @@ use Symfony\Component\Console\Input\InputDefinition;
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\MakePharCommand
+ * @uses DgfipSI1\Application\Command
  */
 class InputOptionsSetterTest extends LogTestCase
 {
@@ -125,6 +126,8 @@ class InputOptionsSetterTest extends LogTestCase
         self::assertTrue($def->hasOption('config'));
         self::assertTrue($def->hasOption('add-config'));
         self::assertTrue($def->hasOption('define'));
+
+        self::assertEquals([], $input->getOption('define'));
     }
     /**
      * test setupGlobalOptions
@@ -158,6 +161,7 @@ class InputOptionsSetterTest extends LogTestCase
         self::assertTrue($def->hasOption('test-b'));
         self::assertTrue($def->hasOption('test-s'));
         self::assertTrue($def->hasOption('configAware'));  // from ApplicationAware
+        $this->assertDebugInContextLog('added', [ 'name' => 'setupGlobalOptions', 'context' => 'Global' ]);
     }
 
     /**
@@ -192,6 +196,10 @@ class InputOptionsSetterTest extends LogTestCase
         self::assertTrue($def->hasOption('test-b'));
         self::assertTrue($def->hasOption('test-s'));
         self::assertTrue($def->hasOption('test-a'));  // from ApplicationAware
+        $this->assertInfoInLog('Setting up command options for hello', true);
+        $ctx =  [ 'name' => 'setupCommandOptions', 'context' => 'hello', 'command' => 'hello' ];
+        $this->assertDebugInContextLog('added', $ctx);
+        $this->assertLogEmpty();
 
         // test with help command
         $setter = $this->createSetter();
@@ -205,6 +213,10 @@ class InputOptionsSetterTest extends LogTestCase
         self::assertTrue($def->hasOption('test-b'));
         self::assertTrue($def->hasOption('test-s'));
         self::assertTrue($def->hasOption('test-a'));  // from ApplicationAware
+        $this->assertInfoInLog('Setting up command options for help', true);
+        $ctx = [ 'name' => 'setupCommandOptions', 'context' => 'help', 'command' => 'hello' ];
+        $this->assertDebugInContextLog('added', $ctx);
+        $this->assertLogEmpty();
 
         // test with unknown command
         $setter = $this->createSetter();
@@ -252,19 +264,19 @@ class InputOptionsSetterTest extends LogTestCase
         $option = new MappedOption('test-opt', OptionType::Boolean);
         $ctx = ['context' => 'testing'];
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertDebugInLog('testing option test-opt added', interpolate:true);
+        $this->assertDebugInLog('testing option test_opt added', interpolate:true);
         $this->assertLogEmpty();
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertWarningInLog('testing option test-opt already exists', interpolate:true);
+        $this->assertWarningInLog('testing option test_opt already exists', interpolate:true);
         $this->assertLogEmpty();
         // $option = new InputArgument('test-arg');
         $option = new MappedOption('test-arg', OptionType::Argument);
         $ctx = ['context' => 'testing'];
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertDebugInLog('testing argument test-arg added', interpolate:true);
+        $this->assertDebugInLog('testing argument test_arg added', interpolate:true);
         $this->assertLogEmpty();
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertWarningInLog('testing argument test-arg already exists', interpolate:true);
+        $this->assertWarningInLog('testing argument test_arg already exists', interpolate:true);
         $this->assertLogEmpty();
     }
     /**

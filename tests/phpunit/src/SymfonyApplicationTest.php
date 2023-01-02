@@ -168,14 +168,15 @@ class SymfonyApplicationTest extends LogTestCase
         $this->phar->setValue($app, $pharRoot);
         $app->registerCommands();
 
-        self::assertTrue($app->has('hello'));
+        self::assertTrue($app->has('hello-world'));
         self::assertTrue($app->has('dump-config'));
         if ('' === $pharRoot) {
             self::assertTrue($app->has('make-phar'));
         } else {
             self::assertFalse($app->has('make-phar'));
         }
-        $this->assertInfoInContextLog('command {cmd} registered', ['name' => 'registerCommands', 'cmd' => 'hello']);
+        $ctx = ['name' => 'registerCommands', 'cmd' => 'hello-world'];
+        $this->assertInfoInContextLog('command {cmd} registered', $ctx);
     }
     /**
      * data provider for symfony go

@@ -45,14 +45,8 @@ class ApplicationLogger
             OutputInterface::VERBOSITY_DEBUG         => MonLvl::fromName('DEBUG'),
         ];
         $vlMap = [
-            LogLevel::EMERGENCY => OutputInterface::VERBOSITY_NORMAL,
-            LogLevel::ALERT => OutputInterface::VERBOSITY_NORMAL,
-            LogLevel::CRITICAL => OutputInterface::VERBOSITY_NORMAL,
-            LogLevel::ERROR => OutputInterface::VERBOSITY_NORMAL,
-            LogLevel::WARNING => OutputInterface::VERBOSITY_NORMAL,
             LogLevel::NOTICE => OutputInterface::VERBOSITY_NORMAL,
             LogLevel::INFO => OutputInterface::VERBOSITY_VERBOSE,
-            LogLevel::DEBUG => OutputInterface::VERBOSITY_DEBUG,
         ];
         $logger = new Monolog('application_logger');
         $consoleLogger = new Logger($output, $vlMap);
@@ -80,17 +74,7 @@ class ApplicationLogger
         }
         $logDirectory = $config->get(CONF::LOG_DIRECTORY);
         if (is_string($logDirectory)) {
-            if (substr($logDirectory, 0, 1) !== '/' && strpos($logDirectory, '://') === false) {
-                $logDirectory = (string) realpath($homeDir).DIRECTORY_SEPARATOR.$logDirectory;
-            }
-            if (!file_exists($logDirectory)) {
-                set_error_handler(function ($errno, $errstr) use ($logDirectory) {
-                    $errMsg = "Can't create log directory '%s' - cause : %s";
-                    throw new RuntimeException(sprintf($errMsg, $logDirectory, $errstr));
-                });
-                mkdir($logDirectory);
-                restore_error_handler();
-            }
+            self::ensureDirectoryExists($logDirectory, $homeDir, $logger);
             $logfile = $config->get(CONF::LOG_FILENAME);
             if (!is_string($logfile)) {
                 $logfile = $config->get(CONF::APPLICATION_NAME).".log";
@@ -144,5 +128,30 @@ class ApplicationLogger
         }
 
         return $verbosity;
+    }
+    /**
+     * Undocumented function
+     *
+     * @param string          $logDirectory
+     * @param string          $homeDir
+     * @param LoggerInterface $logger
+     *
+     * @return void
+     */
+    public static function ensureDirectoryExists($logDirectory, $homeDir, $logger)
+    {
+        if (!str_starts_with($logDirectory, '/') && strpos($logDirectory, '://') === false) {
+            $logDirectory = (string) realpath($homeDir).DIRECTORY_SEPARATOR.$logDirectory;
+        }
+        if (!file_exists($logDirectory)) {
+            set_error_handler(function ($errno, $errstr) use ($logDirectory) {
+                $errMsg = "Can't create log directory '%s' - cause : %s";
+                throw new RuntimeException(sprintf($errMsg, $logDirectory, $errstr));
+            });
+            $logger->info("Creating log directory : $logDirectory");
+            mkdir($logDirectory);
+            /** @infection-ignore-all */
+            restore_error_handler();
+        }
     }
 }

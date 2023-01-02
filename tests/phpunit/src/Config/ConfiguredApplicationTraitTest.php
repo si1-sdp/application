@@ -29,6 +29,7 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\MakePharCommand
+ * @uses DgfipSI1\Application\Command
  */
 class ConfiguredApplicationTraitTest extends LogTestCase
 {
@@ -52,16 +53,16 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $cmd = new HelloWorldCommand();
         $DUMP = 'schema:
     commands:
-        hello:
+        hello_world:
             options:
 
                 # A boolean value here
                 bool:                 true
 
-                # An array there
+                # array there
                 array:                []
 
-                # And a scalar
+                # & scalar
                 scalar:               ~
 ';
 
@@ -70,9 +71,9 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $cmd->setContainer(new Container());
         $cmd->getContainer()->addShared('application', $app);
         $bool = new MappedOption('bool', OptionType::Boolean, 'A boolean value here', 'B', true);
-        $app->addMappedOption($bool->setCommand('hello'));
-        $app->addMappedOption((new MappedOption('array', OptionType::Array, 'An array there'))->setCommand('hello'));
-        $app->addMappedOption((new MappedOption('scalar', OptionType::Scalar, 'And a scalar'))->setCommand('hello'));
+        $app->addMappedOption($bool->setCommand('hello-world'));
+        $app->addMappedOption((new MappedOption('array', OptionType::Array, 'array there'))->setCommand('hello-world'));
+        $app->addMappedOption((new MappedOption('scalar', OptionType::Scalar, '& scalar'))->setCommand('hello-world'));
 
         /** @var ConfigurationInterface $cmd */
         $config = new ConfigHelper($cmd);
@@ -136,7 +137,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $cmd->getConfig()->set('options.foo', 'bar from global');
         self::assertEquals('bar from global', $cmd->getOptionValue('foo'));
 
-        $cmd->getConfig()->set('commands.hello.options.foo', 'bar from hello');
+        $cmd->getConfig()->set('commands.hello_world.options.foo', 'bar from hello');
         self::assertEquals('bar from hello', $cmd->getOptionValue('foo'));
 
         self::assertEquals('bar from global', $notCmd->getOptionValue('foo'));
@@ -174,5 +175,16 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $app = new SymfonyApplication($loaders[0], []);
         $cmd->getContainer()->addShared('application', $app);
         self::assertEquals($app, $cmd->getConfiguredApplication());
+
+        $container = new Container();
+        $container->addShared('application', $this);
+        $cmd->setContainer($container);
+        $msg = '';
+        try {
+            $cmd->getConfiguredApplication();
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+        }
+        self::assertEquals('No application has been set.', $msg);
     }
 }

@@ -43,6 +43,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\MakePharCommand
+ * @uses DgfipSI1\Application\Config\InputOptionsSetter::safeBind
  */
 class ConfigLoaderTest extends LogTestCase
 {
@@ -105,6 +106,12 @@ class ConfigLoaderTest extends LogTestCase
     {
         $events = ConfigLoader::getSubscribedEvents();
         self::assertArrayHasKey(ConsoleEvents::COMMAND, $events);
+        foreach ($events as $handler) {
+            /** @var string $method */
+            $method = $handler[0];
+            self::assertTrue(method_exists(ConfigLoader::class, $method));
+            self::assertEquals(0, $handler[1] % 10);         // priority should be a multiple of 10
+        }
     }
     /**
      * Test ClassLoader configuration
@@ -159,6 +166,10 @@ class ConfigLoaderTest extends LogTestCase
         $config = $loader->getConfig();
         $config->set('foo', 'bar');
         self::assertEquals('bar', $config->getContext(ConfigOverlay::PROCESS_CONTEXT)->get('foo'));
+
+
+        $method = (new ReflectionClass(ConfigLoader::class))->getMethod('loadConfiguration');
+        self::assertTrue($method->isPublic());
     }
     /**
      * configureSchemas
@@ -218,6 +229,7 @@ class ConfigLoaderTest extends LogTestCase
         $argv = ['./tests'];
         $ret = $method->invokeArgs($loader, [$this->createEvent($argv)]);
         self::assertFalse($ret);
+        $this->assertLogEmpty();
 
         // test2 - config file not found
         $argv = ['./tests', '--config', 'foo'];
@@ -230,6 +242,7 @@ class ConfigLoaderTest extends LogTestCase
             $msg = $e->getMessage();
         }
         self::assertEquals("Configuration file 'foo' not found", $msg);
+        $this->assertLogEmpty();
 
         // test3 - config file exists
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
@@ -238,6 +251,8 @@ class ConfigLoaderTest extends LogTestCase
         $event = $this->createEvent($argv);
         $ret = $method->invokeArgs($loader, [$event]);
         self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
+        self::assertTrue($ret);
+        $this->assertDebugInContextLog('Loading configfile', [ 'name' => 'loadConfigFromOptions', 'file' => $cfgFile]);
     }
     /**
      * addConfigFromOptions
@@ -251,12 +266,17 @@ class ConfigLoaderTest extends LogTestCase
         /** @var ConfigHelper $config */
         $config = $loader->getConfig();
 
-        // test1 - no config, only returns false
+        // test1 - no config, no options
+        $argv = ['./tests'];
+        $method->invokeArgs($loader, [$this->createEvent($argv, false)]);
+        self::assertEquals('[]', $config->dumpConfig());
+
+        // test2 - no config, only returns false
         $argv = ['./tests'];
         $method->invokeArgs($loader, [$this->createEvent($argv)]);
         self::assertEquals('[]', $config->dumpConfig());
 
-        // test2 - config file not found
+        // test3 - config file not found
         $argv = ['./tests', '--add-config', 'foo'];
         $event = $this->createEvent($argv);
         $msg = '';
@@ -268,13 +288,14 @@ class ConfigLoaderTest extends LogTestCase
         }
         self::assertEquals("Configuration file 'foo' not found", $msg);
 
-        // test3 - config file exists
+        // test4 - config file exists
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
         $cfgFile = realpath($cfgDir.DIRECTORY_SEPARATOR.'config.yml');
         $argv = ['./tests', '--add-config', "$cfgFile"];
         $event = $this->createEvent($argv);
         $method->invokeArgs($loader, [$event]);
         self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
+        $this->assertDebugInContextLog('Adding configfile', [ 'name' => 'addConfigFromOptions', 'file' => $cfgFile]);
     }
     /**
      * loadConfigFiles
@@ -312,16 +333,50 @@ class ConfigLoaderTest extends LogTestCase
         // test3 - existent absolute path directory
         $this->cd->setValue($loader, realpath(__DIR__));
         $method->invoke($loader);
-        $this->assertDebugInLog(sprintf($logMsg, '', 'config.yml', 'name', 0), true);
+        //$this->showLogs(); return;
+        $ctx = ['name' => 'loadConfigFiles', 'paths' => '[]', 'names' => '[config.yml]', 'sort' => 'name'];
+        $this->assertDebugInContextLog('Loading config', $ctx);
 
-        // test4 - search in data dir
+        // test4 - search in pahr data dir
+        $app = $loader->getConfiguredApplication();
+        $appcl = new ReflectionClass($app::class);
+        $phar = $appcl->getProperty('pharRoot');
+        $phar->setAccessible(true);
+        $pharFile = 'phar://'.getcwd().'/tests/data/config/testcfg.phar';
+        $phar->setValue($app, $pharFile);
+        $this->cd->setValue($loader, '.');
+        $this->pp->setValue($loader, null);
+        $this->np->setValue($loader, ['*.yml']);
+        $this->de->setValue($loader, -1);
+        $this->sn->setValue($loader, false);
+        $method->invoke($loader);
+        $ctx = ['dirs' => "[$pharFile/., ".getcwd()."/.]", 'paths' => '[]', 'names' => '[*.yml]', 'depth' => -1];
+        $this->assertDebugInContextLog('Loading config', $ctx);
+
+        // test5 - search in phar data dir (as absolute root)
+        $this->cd->setValue($loader, $pharFile);
+        $this->pp->setValue($loader, null);
+        $this->np->setValue($loader, ['*.yml']);
+        $this->de->setValue($loader, -1);
+        $this->sn->setValue($loader, false);
+        $method->invoke($loader);
+        $ctx = ['dirs' => "[$pharFile]", 'paths' => '[]', 'names' => '[*.yml]', 'sort' => 'path', 'depth' => -1];
+        $this->assertDebugInContextLog('Loading config', $ctx);
+
+
+        // test5 - search in data dir
+        $loader->setConfig(new ConfigHelper());
+        $config = $loader->getConfig();
+
+        $phar->setValue($app, '');
         $this->cd->setValue($loader, 'tests');
         $this->pp->setValue($loader, ['data']);
         $this->np->setValue($loader, ['*.yml']);
         $this->de->setValue($loader, -1);
         $this->sn->setValue($loader, false);
         $method->invoke($loader);
-        $this->assertDebugInLog(sprintf($logMsg, 'data', '*.yml', 'path', -1), true);
+        $ctx = ['dirs' => "[".getcwd()."/tests]", 'paths' => '[data]', 'names' => '[*.yml]'];
+        $this->assertDebugInContextLog('Loading config', $ctx);
         $this->assertLogEmpty();
         $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
         $cfgFile = realpath($cfgDir.DIRECTORY_SEPARATOR.'config.yml');
@@ -401,30 +456,29 @@ class ConfigLoaderTest extends LogTestCase
      * creates an Event
      *
      * @param array<string> $argv
+     * @param bool          $createOptions
      *
      * @return ConsoleCommandEvent;
      */
-    protected function createEvent($argv)
+    protected function createEvent($argv, $createOptions = true)
     {
         $input = new ArgvInput($argv);
 
         $definition = new InputDefinition();
-        $definition->addOption(new InputOption(
-            '--config',
-            null,
-            InputOption::VALUE_REQUIRED,
-            'Specify configuration file (replace default configuration file).'
-        ));
-        $definition->addOption(new InputOption(
-            '--add-config',
-            null,
-            InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
-            'Specify additional configuration files (in increasing priority order).'
-        ));
-        try {
-            $input->bind($definition);
-        } catch (\Exception $e) {
-            // Errors must be ignored, full binding/validation happens later
+        if ($createOptions) {
+            $definition->addOption(new InputOption(
+                '--config',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Specify configuration file (replace default configuration file).'
+            ));
+            $definition->addOption(new InputOption(
+                '--add-config',
+                null,
+                InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
+                'Specify additional configuration files (in increasing priority order).'
+            ));
+            InputOptionsSetter::safeBind($input, $definition);
         }
         $cmd = new Command('hello');
         $event = new ConsoleCommandEvent($cmd, $input, new NullOutput());

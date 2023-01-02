@@ -14,6 +14,9 @@
     "mutators": {
        "@default": true,
        "@cast": false,
-       "ProtectedVisibility" : false
+       "ProtectedVisibility" : false,
+       "PublicVisibility": {
+            "ignore": [ "*Trait" ]
+        }
     }
 }

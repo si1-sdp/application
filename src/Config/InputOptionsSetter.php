@@ -7,10 +7,8 @@ namespace DgfipSI1\Application\Config;
 use Composer\Console\Input\InputArgument;
 use Consolidation\Config\ConfigInterface;
 use DgfipSI1\Application\AbstractApplication;
-use DgfipSI1\Application\Command as ApplicationCommand;
+use DgfipSI1\Application\Command;
 use DgfipSI1\Application\SymfonyApplication;
-use DgfipSI1\ConfigHelper\ConfigHelperInterface;
-use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -128,11 +126,11 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
             self::safeBind($input, $definition);
             /** @var string $cmdName */
             $cmdName = $input->getArgument('command_name');
+            $logCtx['command'] = $cmdName;
         }
         if (!$this->getContainer()->has($cmdName)) {
             return;
         }
-        $this->getLogger()->info("Adding input options for command '{command}'", $logCtx);
         $command = $app->getCommand($cmdName);
         $definition = $command->getDefinition();
         foreach ($app->getMappedOptions($cmdName) as $option) {
@@ -150,10 +148,10 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      */
     protected function registerCommandOptions($config)
     {
-        /** @var array<ApplicationCommand> $commands */
+        /** @var array<Command> $commands */
         $commands = $this->getContainer()->get(SymfonyApplication::COMMAND_TAG);
         foreach ($commands as $command) {
-            $cmdName = str_replace(':', '_', (string) $command->getName());
+            $cmdName = Command::getConfName((string) $command->getName());
             $key = 'dgfip_si1.command_options.'.$cmdName.'.options';
             $commandOptions = $config->get($key);
             if (is_array($commandOptions)) {

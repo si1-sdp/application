@@ -14,4 +14,16 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 class Command extends SymfonyCommand implements ConfiguredApplicationInterface
 {
     use ConfiguredApplicationTrait;
+
+    /**
+     * get configHelper compatible command name
+     *
+     * @param string $name
+     *
+     * @return string
+     */
+    public static function getConfName(string $name)
+    {
+        return str_replace([':', '-'], '_', $name);
+    }
 }

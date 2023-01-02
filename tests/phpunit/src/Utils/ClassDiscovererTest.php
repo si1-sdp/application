@@ -138,12 +138,28 @@ class ClassDiscovererTest extends LogTestCase
         self::assertEquals([$testRef], $def->getExcludeDeps());
     }
     /**
+     * addDiscoverer data provider
+     *
+     * @return array<string,array<mixed>>
+     */
+    public function addDiscovererData()
+    {
+        return [
+            'empty_ok ' => [ true ],
+            'not_empty' => [ false ],
+        ];
+    }
+    /**
      * test addDiscoverer
+     * @dataProvider addDiscovererData
+     *
      * @covers \DgfipSI1\Application\Utils\ClassDiscoverer::addDiscoverer
+     *
+     * @param bool $emptyOk
      *
      * @return void
      */
-    public function testAddDiscoverer()
+    public function testAddDiscoverer($emptyOk)
     {
         $class = new ReflectionClass(ClassDiscoverer::class);
         $discProp = $class->getProperty('discoverers');
@@ -153,13 +169,21 @@ class ClassDiscovererTest extends LogTestCase
 
 
         $disc = $this->createDiscoverer();
-        $disc->addDiscoverer([ 'ns' ], 'tag', [ 'foo' ], [ 'bar' ], 'id', false);
+        if ($emptyOk) {
+            $disc->addDiscoverer([ 'ns' ], 'tag', [ 'foo' ], [ 'bar' ], 'id');
+        } else {
+            $disc->addDiscoverer([ 'ns' ], 'tag', [ 'foo' ], [ 'bar' ], 'id', false);
+        }
         $this->assertWarningInContextLog('Class "foo" does not exist', ['name' => 'addDiscoverer']);
         $this->assertWarningInContextLog('Class "bar" does not exist', ['name' => 'addDiscoverer']);
         /** @var array<string,int> $tagCount */
         $tagCount = $tcProp->getValue($disc);
-        self::assertArrayHasKey('tag', $tagCount);
-        self::assertEquals(0, $tagCount['tag']);
+        if ($emptyOk) {
+            self::assertEquals([], $tagCount);
+        } else {
+            self::assertArrayHasKey('tag', $tagCount);
+            self::assertEquals(0, $tagCount['tag']);
+        }
         /** @var array<string,array<DiscovererDefinition>> $definitions */
         $definitions = $discProp->getValue($disc);
         self::assertTrue(array_key_exists('ns', $definitions));

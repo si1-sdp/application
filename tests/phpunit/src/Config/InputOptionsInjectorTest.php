@@ -21,6 +21,8 @@ use League\Container\Container;
 use Mockery;
 use Mockery\Mock;
 use ReflectionClass;
+use ReflectionMethod;
+use stdClass;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -43,6 +45,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\MakePharCommand
+ * @uses DgfipSI1\Application\Command
  */
 class InputOptionsInjectorTest extends LogTestCase
 {
@@ -75,6 +78,12 @@ class InputOptionsInjectorTest extends LogTestCase
     {
         $events = InputOptionsInjector::getSubscribedEvents();
         self::assertArrayHasKey(ConsoleEvents::COMMAND, $events);
+        foreach ($events as $handler) {
+            /** @var string $method */
+            $method = $handler[0];
+            self::assertTrue(method_exists(InputOptionsInjector::class, $method));
+            self::assertEquals(0, $handler[1] % 10);         // priority should be a multiple of 10
+        }
     }
     /**
      * test handleCommandEvent without command
@@ -94,12 +103,14 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector = $this->createInjector($argv, true);
 
         $event    = $this->createEvent($argv, createCommand: false);
-
         $injector->shouldReceive('manageGlobalOptions')->once()->with($event->getInput()); /** @phpstan-ignore-line */
         $injector->shouldNotReceive('manageCommandOptions');                               /** @phpstan-ignore-line */
         $injector->shouldReceive('manageDefineOption')->once()->with($event);              /** @phpstan-ignore-line */
         $injector->handleCommandEvent($event);
         $this->assertNoMoreProdMessages();
+
+        $method = (new ReflectionClass(InputOptionsInjector::class))->getMethod('handleCommandEvent');
+        self::assertTrue($method->isPublic());
     }
 
     /**
@@ -133,16 +144,18 @@ class InputOptionsInjectorTest extends LogTestCase
      */
     public function dataToString(): array
     {
-        $data = [
-            'null       ' => [ null              , 'null'                     ],
-            'false      ' => [ false             , 'false'                    ],
-            'true       ' => [ true              , 'true'                     ],
-            'empty_array' => [ []                , '[]'                       ],
-            'seq_array  ' => [ ['one', 'two' ]   , '[one, two]'               ],
-            'other      ' => [ ['one' => 'two' ] , print_r(['one' => 'two' ], true) ],
-        ];
+        $obj1 = new stdClass();
+        $obj1->name = 'obj1';
 
-        return $data;
+        return [
+            'null           ' => [ null              , 'null'                           ],
+            'false          ' => [ false             , 'false'                          ],
+            'true           ' => [ true              , 'true'                           ],
+            'empty_array    ' => [ []                , '[]'                             ],
+            'seq_array      ' => [ ['one', 'two' ]   , '[one, two]'                     ],
+            'seq_obj_array  ' => [ [$obj1        ]   , "[".print_r($obj1, true)."]"     ],
+            'assoc_array    ' => [ ['one' => 'two' ] , print_r(['one' => 'two' ], true) ],
+        ];
     }
 
     /**
@@ -179,18 +192,19 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector = $this->createInjector($argv, true);
 
         $command = new HelloWorldCommand();
-        $injector->getContainer()->addShared('hello', $command);
+        $injector->getContainer()->addShared('hello-world', $command);
 
-        $opt = (new MappedOption('test-opt', OptionType::Boolean))->setCommand('hello');
+        $opt = (new MappedOption('test-opt', OptionType::Boolean))->setCommand('hello-world');
 
         $command->getDefinition()->addOption($opt->getOption());
         $injector->getConfiguredApplication()->addMappedOption($opt);
 
         /** @phpstan-ignore-next-line */
-        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'hello');
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'hello-world');
 
         $injector->manageCommandOptions($input, $command);                          /** @phpstan-ignore-line */
-        $this->assertDebugInLog('Synchronizing config and inputOptions');
+        $ctx = ['name' => 'manageCommand hello-world options'];
+        $this->assertDebugInContextLog('Synchronizing config and inputOptions', $ctx);
     }
     /**
      * test manageCommandOptions with no command
@@ -213,7 +227,7 @@ class InputOptionsInjectorTest extends LogTestCase
 
         $injector->shouldNotReceive('syncInputWithConfig');                       /** @phpstan-ignore-line */
         $injector->manageCommandOptions($input, $command);                        /** @phpstan-ignore-line */
-        $this->assertDebugInLog('Skipping hello (not in container)');
+        $this->assertDebugInLog('Skipping hello-world (not in container)');
         $this->assertLogEmpty();
     }
     /**
@@ -243,7 +257,7 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt);
         /** @phpstan-ignore-next-line */
         $injector->manageGlobalOptions($input);
-        $this->assertDebugInLog('Synchronizing config and inputOptions');
+        $this->assertDebugInContextLog('Synchronizing config and inputOptions', ['name' => 'manageGlobalOptions']);
     }
     /**
      * test manageGlobalOptions - with no application
@@ -272,23 +286,47 @@ class InputOptionsInjectorTest extends LogTestCase
      */
     public function dataSyncInput(): array
     {
-        $variables = [
-            'g-true   ' => [ 'type' => 'boolean' , 'short' => 'B' , 'value' => true          ],
-            'c-false  ' => [ 'type' => 'boolean' , 'short' => 'B' , 'value' => false         ],
-            'g-integer' => [ 'type' => 'scalar'  , 'short' => 's' , 'value' => '99'          ],
-            'c-string ' => [ 'type' => 'scalar'  , 'short' => 's' , 'value' => 'foobar'      ],
-            'g-array12' => [ 'type' => 'array'   , 'short' => 'A' , 'value' => ['one', 'two']],
-            'c-array1 ' => [ 'type' => 'array'   , 'short' => 'A' , 'value' => ['one']       ],
-            'g-arg    ' => [ 'type' => 'argument', 'short' => null, 'value' => 'foo'         ],
+                    //                                empty
+        $variables = [   // name     type,        short    value    value1    value2
+            'boolean' => [ 'bool'  , 'boolean'  , 'B'    , null   , true   , false      ],
+            'Array-A' => [ 'arry'  , 'array'    , 'A'    , []     , [1, 2]  , [3, 4]      ],
+            'ScalarS' => [ 'scal'  , 'scalar'   , 'S'    , ''     , 'foo'  , 'bar'      ],
+            'Argumnt' => [ 'agrt'  , 'argument' , true   , ''     , 'foo'  , 'bar'      ],
         ];
         $data = [];
-        foreach ($variables as $name => $item) {
-            foreach ([$item['value'], null] as $default) {
-                foreach ([$item['value'], null] as $conf) {
-                    foreach ([$item['value'], null] as $opt) {
-                        $test = "$name:".(null !== $default ? 'D' : '-').':'.
-                            (null !== $conf ? 'C' : '-').':'.(null !== $opt ? 'O' : '-');
-                        $data[$test] = [ $item['type'], trim($name), $item['short'], $default, $conf, $opt ];
+        foreach ($variables as $iName => $item) {
+            $name  = $item[0];
+            $type  = $item[1];
+            if ('argument' === $type) {
+                $short = $item[2];
+                $required = null;
+            } else {
+                $short = null;
+                $required = $item[2];
+            }
+            $emptyValue = $item[3];
+            $v1 = $item[4];
+            $v2 = $item[5];
+            foreach ([true, false] as $useGlobal) {
+                $indexName = $iName.($useGlobal ? '-Glo' : '-Cmd');
+                $values = [ $v1, $v2, $emptyValue];
+                if (null !== $emptyValue) {
+                    $values[] = null;
+                }
+                foreach ($values as $default) {
+                    if ([] === $default) {   // skip [] default, which is same as null
+                        continue;
+                    }
+                    $ID = "$indexName:D".InputOptionsInjector::toString($default);
+                    foreach ($values as $config) {
+                        $IC = "$ID:C".InputOptionsInjector::toString($config);
+                        foreach ($values as $option) {
+                            if ([] === $option) {   // skip [] in input, which is same as null
+                                continue;
+                            }
+                            $IO = str_replace([' '], '', "$IC:O".InputOptionsInjector::toString($option));
+                            $data[$IO] = [$name, $type, $short, $useGlobal, $default, $config, $option];
+                        }
                     }
                 }
             }
@@ -300,9 +338,10 @@ class InputOptionsInjectorTest extends LogTestCase
     /**
      * test syncInputWithConfig
      *
-     * @param string      $type
      * @param string      $name
+     * @param string      $type
      * @param string|null $short
+     * @param bool        $useGlobal
      * @param mixed       $default
      * @param mixed       $confValue
      * @param mixed       $optValue
@@ -315,21 +354,16 @@ class InputOptionsInjectorTest extends LogTestCase
      *
      * @dataProvider dataSyncInput
      */
-    public function testSyncInputWithConfig($type, $name, $short, $default, $confValue, $optValue)
+    public function testSyncInputWithConfig($name, $type, $short, $useGlobal, $default, $confValue, $optValue)
     {
         // create injector
         $injector = $this->createInjector();
         $method = $this->class->getMethod('syncInputWithConfig');
         $method->setAccessible(true);
-
         $definition = $injector->getConfiguredApplication()->getDefinition();
-
-        if ('g' === substr($name, 0, 1)) {
-            $prefix = 'options';
-        } else {
-            $prefix = 'commands.hello.options';
-        }
-
+        //
+        // CREATE CORRESPONDING MAPPED OPTION
+        //
         $options = [
             MappedOption::OPT_SHORT          => $short,
             MappedOption::OPT_DESCRIPTION    => "Description for $type option '$name'",
@@ -343,85 +377,74 @@ class InputOptionsInjectorTest extends LogTestCase
         } else {
             $definition->addOption($option->getOption());
         }
+        //
+        // SET CONFIG VALUE
+        //
+        if ($useGlobal) {
+            $prefix = 'options';
+        } else {
+            $prefix = 'commands.hello.options';
+        }
         /** @var ConfigHelper $config */
         $config = $injector->getConfig();
         $key = $prefix.'.'.str_replace(['.', '-' ], '_', $name);
         $config->set($key, $confValue);
-        $tests = [];
-        if (null !== $optValue) {
-            foreach (['short', 'long'] as $optType) {
-                // create argv
-                $args = [];
-                if ('short' === $optType) {
-                    if ('boolean' === $type && false === $optValue) {
-                        continue;
-                    }
-                    if (null === $short) {
-                        continue;
-                    }
-                    $optName = "-$short";
-                } else {
-                    if ('boolean' === $type && false === $optValue) {
-                        $optName = "--no-$name";
-                    } else {
-                        $optName = "--$name";
-                    }
-                }
-                switch ($type) {
-                    case 'boolean':
-                        $args = [ $optName ];
-                        break;
-                    case 'scalar':
-                        /** @var string $optValue */
-                        $args = [ "$optName", "$optValue" ];
-                        break;
-                    case 'argument':
-                        /** @var string $optValue */
-                        $args = [ "$optValue" ];
-                        break;
-                    case 'array':
-                        /** @var array<string> $optValue */
-                        foreach ($optValue as $value) {
-                            $args[] = "$optName";
-                            $args[] = "$value";
-                        }
-                        break;
-                }
-                $args = array_merge([ "./test", "command" ], $args);
-                $tests[] = $args;
-            }
+        //
+        // CREATE COMMAND LINE ARGUMENTS FOR OPTION
+        //
+        $argv = $this->getCommandArgvFromValue($type, $name, $short, $optValue);
+        $input = new ArgvInput($argv);
+        $input->bind($definition);
+
+        //
+        // CALL TESTED METHOD
+        //
+        if ($useGlobal) {
+            $method->invokeArgs($injector, [$input, $option]);
+            $caller = 'manageGlobalOptions';
         } else {
-            $tests[] = [ "./test", "command" ];
+            $method->invokeArgs($injector, [$input, $option, 'hello']);
+            $caller = "manage hello options";
         }
-        foreach ($tests as $args) {
-            $input = new ArgvInput($args);
-            $input->bind($definition);
-            if ('g' === substr($name, 0, 1)) {
-                $method->invokeArgs($injector, [$input, $option]);
-            } else {
-                $method->invokeArgs($injector, [$input, $option, 'hello']);
-            }
-
-            // populate config
-
-            $expect = null;
-            if (null !== $optValue) {
-                $expect = $optValue;
-            } elseif (null !== $confValue) {
-                $expect = $confValue;
-            } elseif (null !== $default) {
-                $expect = $default;
-            }
-            if (null === $expect && 'array' === $type) {
-                $expect = [];
-            }
-            self::assertEquals($expect, $config->get($key));
-            if ('argument' === $type) {
-                self::assertEquals($expect, $input->getArgument($name));
-            } else {
-                self::assertEquals($expect, $input->getOption($name));
-            }
+        //
+        // DETERMINE EXPECTED VALUE
+        //
+        $expect = null;
+        if (null !== $optValue) {
+            $expect = $optValue;
+            $this->assertDebugInContextLog('CONFIG->SET', ['input' => InputOptionsInjector::toString($optValue)]);
+        } elseif (null !== $confValue) {
+            $expect = $confValue;
+            $this->assertDebugInContextLog('INPUT->SET', ['conf' => InputOptionsInjector::toString($confValue)]);
+        } elseif (null !== $default) {
+            $expect = $default;
+            $this->assertDebugInContextLog('CONFIG->SET', ['value' => InputOptionsInjector::toString($expect)]);
+            $this->assertDebugInContextLog('INPUT->SET', ['value' => InputOptionsInjector::toString($expect)]);
         }
+        if (null === $expect && 'array' === $type) {
+            $expect = [];
+        }
+        $ctx = [
+            'name' => $caller,
+            'key' => $key,
+            'input' => InputOptionsInjector::toString($optValue),
+            'conf' => InputOptionsInjector::toString($confValue),
+        ];
+        // print "\n";
+        // print "(T)WANT DEFAULT : ".InputOptionsInjector::toString($default)."\n";
+        // print "(T)WANT CONFIG  : ".InputOptionsInjector::toString($confValue)."\n";
+        // print "(T)WANT INPUT   : ".InputOptionsInjector::toString($optValue)."\n";
+        // print "(T)==> ARGV     : ".implode(" ", $argv)."\n";
+        // print_r($ctx);
+        // $this->showLogs();
+
+        self::assertEquals($expect, $config->get($key));
+        if ('argument' === $type) {
+            self::assertEquals($expect, $input->getArgument($name));
+        } else {
+            self::assertEquals($expect, $input->getOption($name));
+        }
+        $this->assertDebugInContextLog('INPUT', $ctx);
     }
     /**
      * test manageDefineOptions
@@ -474,6 +497,55 @@ class InputOptionsInjectorTest extends LogTestCase
         self::assertEquals(['foo', 'bar', true], $res);
         $res = $method->invokeArgs($injector, ['foo']);
         self::assertEquals(['foo', true], $res);
+        $res = $method->invokeArgs($injector, ['foo=bar=3']);
+        self::assertEquals(['foo', 'bar=3', true], $res);
+    }
+    /**
+     * builds argv needed to set given option
+     *
+     * @param string      $type
+     * @param string      $name
+     * @param string|null $short
+     * @param mixed       $optValue
+     *
+     * @return array<string>
+     */
+    protected function getCommandArgvFromValue($type, $name, $short, $optValue)
+    {
+        $argv = [ "./test", "command" ];
+        if (null !== $optValue) {
+            // determine option name to uses ie : -short, --long or --no-long
+            if (null === $short || ('boolean' === $type && false === $optValue)) {
+                if ('boolean' === $type && false === $optValue) {
+                    $optName = "--no-$name";
+                } else {
+                    $optName = "--$name";
+                }
+            } else {
+                $optName = "-$short";
+            }
+            switch ($type) {
+                case 'boolean':
+                    $argv[] = $optName;
+                    break;
+                case 'scalar':
+                    /** @var string $optValue */
+                    array_push($argv, "$optName", "$optValue");
+                    break;
+                case 'argument':
+                    /** @var string $optValue */
+                    $argv[] = "$optValue";
+                    break;
+                case 'array':
+                    /** @var array<string> $optValue */
+                    foreach ($optValue as $value) {
+                        array_push($argv, "$optName", "$value");
+                    }
+                    break;
+            }
+        }
+
+        return $argv;
     }
     /**
      * creates a fully equiped loader
@@ -536,7 +608,7 @@ class InputOptionsInjectorTest extends LogTestCase
             }
         }
         if ($createCommand) {
-            $cmd   = new ApplicationCommand('hello');
+            $cmd   = new ApplicationCommand('hello-world');
             $event = new ConsoleCommandEvent($cmd, $input, new NullOutput());
         } else {
             $event = new ConsoleCommandEvent(null, $input, new NullOutput());
