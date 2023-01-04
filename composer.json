@@ -77,7 +77,7 @@
     "phpcbf": "phpcbf",
     "phpcs": "vendor/bin/phpcs --report=junit",
     "phpmetrics": "phpmetrics --junit=tests/results/tests-phpunit.xml --report-html=tests/results/phpmetrics src && firefox $(pwd)/tests/results/phpmetrics/index.html",
-    "phpstan": "vendor/bin/phpstan analyse --no-progress --error-format=junit",
+    "phpstan": "php -d memory_limit=256M vendor/bin/phpstan analyse --no-progress --error-format=junit",
     "phpunit": "vendor/bin/phpunit --log-junit tests/results/phpunit.xml",
     "security": "@composer update --dry-run roave/security-advisories",
     "static": "grumphp run --testsuite=static",
