@@ -54,14 +54,10 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
         }
     }
 
-    // TODO :
-    // array [callbacks]
-    //    'cleanup'              (stashedDir, filePatterns)
-    //    'makePhar'             (stashedDir, )
     /**
      * Undocumented function
      *
-    * @param string                                      $source
+     * @param string                                      $source
      * @param string                                      $destination
      * @param array<string>                               $excluded
      * @param array<int,array<int,callable|array<mixed>>> $callbacks
