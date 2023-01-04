@@ -229,7 +229,8 @@ class MappedOption
         return str_replace(['.', '-' ], '_', $name);
     }
     /**
-     *
+     * TODO : build a cloned input and a full definition in caller would optimize $this
+     * TODO : Test many configurations Several arguments and options
      *
      * @param InputInterface $input
      *
@@ -241,21 +242,23 @@ class MappedOption
         $clonedInput = clone($input);
         if ($this->isArgument()) {
             $name = $this->getArgument()->getName();
-            $definition = new InputDefinition([
-                new InputArgument('command', InputArgument::REQUIRED, 'The command name'),
-                new InputArgument($name, $this->type->mode($this->required)),
-            ]);
+            $definition = new InputDefinition();
+            foreach ($input->getArguments() as $arg => $value) {
+                $definition->addArgument(new InputArgument($arg));
+            }
             InputOptionsSetter::safeBind($clonedInput, $definition);
 
             $value = $clonedInput->getArgument($name);
         } else {
             $name = $this->getOption()->getName();
-            $definition = new InputDefinition([
-                new InputArgument('command', InputArgument::REQUIRED, 'The command name'),
-                new InputOption($name, $this->getOption()->getShortcut(), $this->type->mode($this->required)),
-            ]);
+            $definition = new InputDefinition();
+            foreach ($input->getArguments() as $arg => $value) {
+                $definition->addArgument(new InputArgument($arg));
+            }
+            $definition->addOption(
+                new InputOption($name, $this->getOption()->getShortcut(), $this->type->mode(true))
+            );
             InputOptionsSetter::safeBind($clonedInput, $definition);
-
             $value = $clonedInput->getOption($name);
         }
 

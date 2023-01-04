@@ -165,8 +165,13 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             $rootDirectory = $this->configDir;
         }
         $dirs = $this->getDirectories($rootDirectory, $this->getConfiguredApplication());
-        if (sizeof($dirs) === 0 && true === $askedConfig) {
-            throw new ConfigFileNotFoundException(sprintf("Configuration directory '%s' not found", $rootDirectory));
+        if (sizeof($dirs) === 0) {
+            if (true === $askedConfig) {
+                throw new ConfigFileNotFoundException(sprintf("Config directory '%s' not found", $rootDirectory));
+            }
+            $this->getLogger()->debug("No configuration files found", $logCtx);
+
+            return;
         }
         $logCtx['dirs']  = "[".implode(', ', $dirs)."]";
         $logCtx['paths'] = "[".((bool) $this->pathPatterns ? implode(', ', $this->pathPatterns) : '')."]";

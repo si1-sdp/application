@@ -19,14 +19,14 @@
     "php": ">=8.1",
     "composer/composer": "^2,>=2.4",
     "consolidation/robo": "^4.0",
-    "dgfip-si1/config-helper": "^1.0,>=1.0.alpha10",
+    "dgfip-si1/config-helper": "^1.0,>=1.0.3",
     "league/container": "^4.0,>=4.2",
     "monolog/monolog": "^3.2",
     "symfony/console": "^6"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^0.7.2",
-    "dgfip-si1/test-logger": ">= 1.0.alpha12",
+    "dgfip-si1/test-logger": ">= 1.0.1-alpha",
     "ergebnis/composer-normalize": "^2.28",
     "escapestudios/symfony2-coding-standard": "^3.x-dev",
     "infection/infection": "^0.26.6",

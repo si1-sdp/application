@@ -31,6 +31,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
+use Symfony\Component\Filesystem\Path;
 
 /**
  * @uses DgfipSI1\Application\AbstractApplication
@@ -298,89 +299,152 @@ class ConfigLoaderTest extends LogTestCase
         $this->assertDebugInContextLog('Adding configfile', [ 'name' => 'addConfigFromOptions', 'file' => $cfgFile]);
     }
     /**
+     * Data Provider for testLoadConfigFiles
+     *
+     * @return array<string,array<mixed>>
+     */
+    public function loadConfigFilesData()
+    {
+        $abs = realpath(__DIR__);
+        $phar = 'phar://'.getcwd().'/tests/data/config/testcfg.phar';
+        $conf = "test: 'test value'\n";
+
+        return [              // cd    expect  paths    names    sort     depth    pharRoot home     cur      err
+            'notConfigured' => [ null  , "[]"  , null   , null   , null   , null   , null   , null   , null   , null ],
+            'noDirs__error' => [ '/foo', null  , null   , null   , null   , null   , null   , null   , null   , 'NF' ],
+            'noDirs__noErr' => [ null  , "[]"  , null   , null   , null   , null   , '/foo' , '/foo' , '/foo' , 'NC' ],
+            'absolute__dir' => [ $abs  , "[]"  , null   , null   , 'path' , null   , null   , null   , null   , null ],
+            'in_._phar_set' => [ '.'   , $conf , null   , '*.yml', null   , 0      , $phar  , null   , null   , null ],
+            'phar__as_root' => [ $phar , $conf , null   , '*.yml', null   , -1     , null   , null   , null   , null ],
+            'test_data_dir' => [ 'tests', $conf, 'data' , '*.yml', 'path' , -1     , null   , null   , null   , null ],
+        ];
+    }
+    /**
      * loadConfigFiles
+     * @dataProvider loadConfigFilesData
+     *
      * @covers \DgfipSI1\Application\Config\ConfigLoader::loadConfigFiles
      * @covers \DgfipSI1\Application\Config\ConfigLoader::getDirectories
+     *
+     * @param string|null               $confDir
+     * @param string|null               $expect
+     * @param array<string>|string|null $paths
+     * @param array<string>|string|null $names
+     * @param string|null               $sort
+     * @param int|null                  $depth
+     * @param string|null               $pharRoot
+     * @param string|null               $home
+     * @param string|null               $cur
+     * @param string|null               $err
+     *
+     * @return void
      */
-    public function testLoadConfigFiles(): void
+    public function testLoadConfigFiles($confDir, $expect, $paths, $names, $sort, $depth, $pharRoot, $home, $cur, $err)
     {
         $method = $this->class->getMethod('loadConfigFiles');
         $method->setAccessible(true);
-
-        $logMsg = 'Loading config: paths=[%s] - names=[%s] - sort by %s - depth = %d';
-
         $loader = $this->createConfigLoader();
+        $app = $loader->getConfiguredApplication();
+        $appcl = new ReflectionClass($app::class);
+
+        $exceptions = [
+            'NF' => "/Config directory .* not found/",
+        ];
+        $errs = [
+            'NC' => "No configuration files found",
+        ];
+
         /** @var ConfigHelper $config */
         $config = $loader->getConfig();
-
-        // test1 - no config
-        $method->invoke($loader);
-        self::assertEquals('[]', $config->dumpConfig());
-        $this->assertDebugInLog(sprintf($logMsg, '', 'config.yml', 'name', 0), true);
-        $this->assertLogEmpty();
-
-        // test2 - non existent configured config directory
-        $this->cd->setValue($loader, '/foo');
+        $dirs = [];
+        if (null !== $confDir) {
+            $this->cd->setValue($loader, $confDir);
+        } else {
+            $confDir = '.';
+        }
+        if (null !== $names) {
+            if (is_string($names)) {
+                $names = [$names];
+            }
+            $this->np->setValue($loader, $names);
+        } else {
+            $names = ['config.yml'];
+        }
+        if (null !== $paths) {
+            if (is_string($paths)) {
+                $paths = [$paths];
+            }
+            $this->pp->setValue($loader, $paths);
+        } else {
+            $paths = [];
+        }
+        if (null !== $sort) {
+            $this->sn->setValue($loader, ('name' === $sort ? true : false));
+        } else {
+            $sort = 'name';
+        }
+        if (null !== $depth) {
+            $this->de->setValue($loader, $depth);
+        } else {
+            $depth = 0;
+        }
+        if (null !== $pharRoot) {
+            $phar = $appcl->getProperty('pharRoot');
+            $phar->setAccessible(true);
+            $phar->setValue($app, $pharRoot);
+            $dirs[] = "$pharRoot/$confDir";
+        }
+        if (null !== $home) {
+            $homep = $appcl->getProperty('homeDir');
+            $homep->setAccessible(true);
+            $homep->setValue($app, $home);
+            $dirs[] = "$home/$confDir";
+        }
+        if (null !== $cur) {
+            $curp = $appcl->getProperty('currentDir');
+            $curp->setAccessible(true);
+            $curp->setValue($app, $cur);
+            $dirs[] = "$cur/$confDir";
+        }
+        $dirs[] = getcwd()."/$confDir";
+        if (Path::isAbsolute($confDir)) {
+            $dirs = [$confDir];
+        }
         $msg = '';
         try {
             $method->invoke($loader);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
-        self::assertEquals("Configuration directory '/foo' not found", $msg);
-        $this->assertLogEmpty();
+        if (null !== $err) {
+            if (array_key_exists($err, $exceptions)) {
+                self::assertMatchesRegularExpression($exceptions[$err], $msg);
+            } else {
+                $this->assertDebugInLog($errs[$err]);
+            }
 
-        // test3 - existent absolute path directory
-        $this->cd->setValue($loader, realpath(__DIR__));
-        $method->invoke($loader);
-        //$this->showLogs(); return;
-        $ctx = ['name' => 'loadConfigFiles', 'paths' => '[]', 'names' => '[config.yml]', 'sort' => 'name'];
-        $this->assertDebugInContextLog('Loading config', $ctx);
+            return;
+        }
+        // print "\n======================================================\n";
+        // print $msg;
+        // print "\n======================================================\n";
+        // print $config->dumpConfig();
+        // print "\n======================================================\n";
+        // $this->showLogs();
 
-        // test4 - search in pahr data dir
-        $app = $loader->getConfiguredApplication();
-        $appcl = new ReflectionClass($app::class);
-        $phar = $appcl->getProperty('pharRoot');
-        $phar->setAccessible(true);
-        $pharFile = 'phar://'.getcwd().'/tests/data/config/testcfg.phar';
-        $phar->setValue($app, $pharFile);
-        $this->cd->setValue($loader, '.');
-        $this->pp->setValue($loader, null);
-        $this->np->setValue($loader, ['*.yml']);
-        $this->de->setValue($loader, -1);
-        $this->sn->setValue($loader, false);
-        $method->invoke($loader);
-        $ctx = ['dirs' => "[$pharFile/., ".getcwd()."/.]", 'paths' => '[]', 'names' => '[*.yml]', 'depth' => -1];
-        $this->assertDebugInContextLog('Loading config', $ctx);
+        self::assertEquals('', $msg);
+        self::assertEquals($expect, $config->dumpConfig());
+        $ctx = [
+            'name'   => 'loadConfigFiles',
+            'paths'  => '['.implode(' ', $paths).']',
+            'names'  => '['.implode(' ', $names).']',
+            'sort'   => $sort,
+            'depth'  => $depth,
+            'dirs'   => '['.implode(", ", $dirs).']',
+        ];
 
-        // test5 - search in phar data dir (as absolute root)
-        $this->cd->setValue($loader, $pharFile);
-        $this->pp->setValue($loader, null);
-        $this->np->setValue($loader, ['*.yml']);
-        $this->de->setValue($loader, -1);
-        $this->sn->setValue($loader, false);
-        $method->invoke($loader);
-        $ctx = ['dirs' => "[$pharFile]", 'paths' => '[]', 'names' => '[*.yml]', 'sort' => 'path', 'depth' => -1];
-        $this->assertDebugInContextLog('Loading config', $ctx);
-
-
-        // test5 - search in data dir
-        $loader->setConfig(new ConfigHelper());
-        $config = $loader->getConfig();
-
-        $phar->setValue($app, '');
-        $this->cd->setValue($loader, 'tests');
-        $this->pp->setValue($loader, ['data']);
-        $this->np->setValue($loader, ['*.yml']);
-        $this->de->setValue($loader, -1);
-        $this->sn->setValue($loader, false);
-        $method->invoke($loader);
-        $ctx = ['dirs' => "[".getcwd()."/tests]", 'paths' => '[data]', 'names' => '[*.yml]'];
         $this->assertDebugInContextLog('Loading config', $ctx);
         $this->assertLogEmpty();
-        $cfgDir = $this->appRoot.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'config';
-        $cfgFile = realpath($cfgDir.DIRECTORY_SEPARATOR.'config.yml');
-        self::assertEquals(file_get_contents((string) $cfgFile), $config->dumpConfig());
     }
     /**
      * loadConfigFiles

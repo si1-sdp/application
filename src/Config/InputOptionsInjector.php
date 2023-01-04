@@ -151,9 +151,6 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
 
         $confStr = self::toString($confValue);
         $logCtx = ['name' => $caller, 'key' => $key, 'input' => self::toString($inputValue), 'conf' => $confStr];
-    // print("\n(I)INPUT VALUE : ".self::toString($inputValue)."\n");
-    // print("(I)CONFIG VALUE : ".self::toString($confValue)."\n");
-    // print_r($logCtx);
         $this->getLogger()->debug("{key} => INPUT : {input} - CONFIG : {conf}", $logCtx);
         if (null === $inputValue) {
             if (null === $confValue) {
