@@ -1,4 +1,16 @@
 # dgfip-si1/application
+[![Latest Stable Version](https://poser.pugx.org/dgfip-si1/application/v)](https://packagist.org/packages/dgfip-si1/application)
+[![Latest Unstable Version](https://img.shields.io/github/v/tag/si1-sdp/application?include_prereleases&sort=date&label=Latest)](https://packagist.org/packages/dgfip-si1/application)
+![Packagist PHP Version](https://img.shields.io/packagist/dependency-v/dgfip-si1/application/php?color=%237A86B8&logo=php)
+![Packagist Downloads](https://img.shields.io/packagist/dt/dgfip-si1/application?color=%25237A86B8&logo=packagist&logoColor=%23FFFFFF)
+
+
+![Packagist Version](https://img.shields.io/packagist/v/dgfip-si1/application?label=Latest)
+
+![PHPCS](https://img.shields.io/badge/PHPcs-&#10003;-brightgreen)&nbsp;&nbsp;
+[![PHPStan](https://img.shields.io/badge/PHPStan-Level%209-brightgreen.svg?style=flat)](https://github.com/phpstan/phpstan)&nbsp;&nbsp;
+[![Tests status](https://github.com/si1-sdp/application/actions/workflows/ci.yaml/badge.svg)](https://github.com/si1-sdp/application/actions/workflows/ci.yaml)&nbsp;&nbsp;
+![Infection](https://img.shields.io/badge/infection-&#10003;-brightgreen)&nbsp;&nbsp;
 
 ## Injecting configuration data
 
