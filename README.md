@@ -5,12 +5,12 @@
 ![Packagist Downloads](https://img.shields.io/packagist/dt/dgfip-si1/application?color=%25237A86B8&logo=packagist&logoColor=%23FFFFFF)
 
 
-![Packagist Version](https://img.shields.io/packagist/v/dgfip-si1/application?label=Latest)
 
 ![PHPCS](https://img.shields.io/badge/PHPcs-&#10003;-brightgreen)&nbsp;&nbsp;
 [![PHPStan](https://img.shields.io/badge/PHPStan-Level%209-brightgreen.svg?style=flat)](https://github.com/phpstan/phpstan)&nbsp;&nbsp;
 [![Tests status](https://github.com/si1-sdp/application/actions/workflows/ci.yaml/badge.svg)](https://github.com/si1-sdp/application/actions/workflows/ci.yaml)&nbsp;&nbsp;
 ![Infection](https://img.shields.io/badge/infection-&#10003;-brightgreen)&nbsp;&nbsp;
+<!--[![Coverage Status](https://coveralls.io/repos/github/si1-sdp/application/badge.svg?branch=main)](https://coveralls.io/github/si1-sdp/application?branch=main)-->
 
 ## Injecting configuration data
 
