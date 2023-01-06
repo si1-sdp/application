@@ -74,8 +74,8 @@ trait ConfiguredApplicationTrait
     public function getOptionValue($arg)
     {
         if ($this instanceof Command) {
-            $name = Command::getConfName((string) $this->getName());
-            $key = "commands.$name.options.$arg";
+            $cmdName = Command::getConfName((string) $this->getName());
+            $key = "commands.$cmdName.options.$arg";
             if (null !== $this->getConfig()->get($key)) {
                 return $this->getConfig()->get($key);
             }

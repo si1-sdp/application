@@ -256,7 +256,17 @@ class MappedOptionTest extends LogTestCase
     {
         self::assertEquals($expected, MappedOption::getConfName($name));
     }
-
+    /**
+     * @covers DgfipSI1\Application\Config\OptionType::mode
+     * Just test that default is false. rest is tested via mappedOption::constructor
+     *
+     * @return void
+     */
+    public function testInputOptionMode()
+    {
+        self::assertEquals(OptionType::Argument->mode(), OptionType::Argument->mode(false));
+        self::assertNotEquals(OptionType::Argument->mode(), OptionType::Argument->mode(true));
+    }
     /**
      *  test constructor
      *

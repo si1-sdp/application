@@ -256,7 +256,7 @@ class MappedOption
                 $definition->addArgument(new InputArgument($arg));
             }
             $definition->addOption(
-                new InputOption($name, $this->getOption()->getShortcut(), $this->type->mode(true))
+                new InputOption($name, $this->getOption()->getShortcut(), $this->type->mode())
             );
             InputOptionsSetter::safeBind($clonedInput, $definition);
             $value = $clonedInput->getOption($name);

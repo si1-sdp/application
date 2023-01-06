@@ -23,7 +23,7 @@ enum OptionType: string
      *
      * @return int
      */
-    public function mode($required): int
+    public function mode($required = false): int
     {
         return match ($this) {
             OptionType::Boolean   => InputOption::VALUE_NONE|InputOption::VALUE_NEGATABLE,
