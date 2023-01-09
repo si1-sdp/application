@@ -107,11 +107,12 @@ EOH
             $this->getLogger()->notice("removing old phar : {file}", $logCtx);
         }
         $dirStasher = new DirectoryStasher();
+        $dirStasher->setLogger($this->getLogger());
         $callBacks = [];
         $stashDir = '/tmp/stash';
         $composerOpts = [ 'install', '--working-dir', $stashDir, '--no-dev' ];
-        $callBacks[] = [ [ $this       , 'composerRun'     ], $composerOpts ];
-        $callBacks[] = [ [ $dirStasher , 'resolveSymlinks' ], [ ] ];
+        $callBacks[] = [ 'callable' => [ $this       , 'composerRun'     ], 'args' => [ $composerOpts ] ];
+        $callBacks[] = [ 'callable' => [ $dirStasher , 'resolveSymlinks' ], 'args' => [ ] ];
         $dirStasher->stash('.', $stashDir, $this->getStashExcludedFiles(), $callBacks);
 
         $this->makePhar($pharFile, $stashDir, $entryPoint, $this->pharExcludes);

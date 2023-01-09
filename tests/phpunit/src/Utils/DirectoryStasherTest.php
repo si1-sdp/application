@@ -80,10 +80,10 @@ class DirectoryStasherTest extends LogTestCase
     public function testStash()
     {
         $callBacks = [
-            [[ $this->logger, 'alert'], ["This is an alert"]],
-            [ static fn (): string => 'foo' , []],
-            [ static fn (): int => 1 , []],
-            [ 'not_callable' , []],
+            [ 'callable' => [ $this->logger, 'alert']     , 'args' => ["This is an alert"] ],
+            [ 'callable' => static fn (): string => 'foo' , 'args' => []                   ],
+            [ 'callable' => static fn (): int => 1        , 'args' => []                   ],
+            [ 'callable' => 'not_callable'                , 'args' => []                   ],
         ];
         $this->populateVfsTree();
         $src = $this->root->url().DIRECTORY_SEPARATOR.'src';
@@ -140,11 +140,11 @@ class DirectoryStasherTest extends LogTestCase
      */
     public function resolveSymlinksData()
     {
-        return [
-            'no_directory'    => [ null             , "/No directory given/"              ],
-            'unresolved_link' => ['unresolved_links', "/the symlink .* can't be resolved/"],
-            'outside_link   ' => ['outside_links'   , "/points outside stashed directory/"],
-            'inside_link    ' => ['inside_links'    , null ],
+        return [         //   dir    bad link target         , exception
+            'no_dir    ' => [ false, null                    , "/No directory given/"               ],
+            'unresolved' => [ true , '/foo/bar'              , "/the symlink .* can't be resolved/" ],
+            'outside   ' => [ true , '../../config/test.phar', "/points outside stashed directory/" ],
+            'inside    ' => [ true , null                    , null                                 ],
         ];
     }
 
@@ -154,35 +154,36 @@ class DirectoryStasherTest extends LogTestCase
      *
      * @dataProvider resolveSymlinksData
      *
-     * @param string|null $directory
+     * @param boolean     $directory
+     * @param string|null $badTarget
      * @param string|null $exception
      *
      * @return void
      */
-    public function testResolveSymlinks($directory, $exception)
+    public function testResolveSymlinks($directory, $badTarget, $exception)
     {
         $symlinksPlayground = __DIR__.'/../../../data/testSymlinks';
         self::assertDirectoryExists($symlinksPlayground);
+        $dir = $symlinksPlayground.'/tests';
+        $this->fs->remove("$dir");
         $stash = $this->createStasher();
-        $dir = null;
-        if (null !== $directory) {
-            $dir = $symlinksPlayground.'/'.$directory;
-            self::assertDirectoryExists($dir);
-            $dd = (new ReflectionClass($stash::class))->getProperty('destDir');
-            $dd->setValue($stash, $dir);
+        if (true === $directory) {
+            mkdir($dir);
+            mkdir("$dir/d1");
+            mkdir("$dir/d2");
+            mkdir("$dir/d3");
             if (null === $exception) {
                 // prepare directory for nominal case
-                $this->fs->remove("$dir/tests");
-                mkdir("$dir/tests");
-                $dir = "$dir/tests";
-                mkdir("$dir/d1");
-                mkdir("$dir/d2");
-                mkdir("$dir/d3");
                 file_put_contents("$dir/d2/f2", 'f2');
                 file_put_contents("$dir/d3/f3", 'f3');
                 symlink("../d2", "$dir/d1/d2link");
                 symlink("../d3/f3", "$dir/d1/f3link");
             }
+            if (null !== $badTarget) {
+                symlink($badTarget, "$dir/".basename($badTarget));
+            }
+            $dd = (new ReflectionClass($stash::class))->getProperty('destDir');
+            $dd->setValue($stash, $dir);
         }
         $msg = '';
         try {

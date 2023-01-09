@@ -57,10 +57,10 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
     /**
      * Undocumented function
      *
-     * @param string                                      $source
-     * @param string                                      $destination
-     * @param array<string>                               $excluded
-     * @param array<int,array<int,callable|array<mixed>>> $callbacks
+     * @param string                                         $source
+     * @param string                                         $destination
+     * @param array<string>                                  $excluded
+     * @param array<int,array<string,callable|array<mixed>>> $callbacks
      *
      * @return void
      */
@@ -77,10 +77,10 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
         $this->copyToDestination($source, $destination, $excluded);
         foreach ($callbacks as $index => $cb) {
             $name = '';
-            if (is_callable($cb[0], callable_name: $name)) {
+            if (is_callable($cb['callable'], callable_name: $name)) {
                 /** @var array<mixed> $args */
-                $args = $cb[1];
-                $ret = call_user_func_array($cb[0], $args);
+                $args = $cb['args'];
+                $ret = call_user_func_array($cb['callable'], $args);
                 if (is_string($ret) || is_numeric($ret)) {
                     $ret = (string) $ret;
                 } else {

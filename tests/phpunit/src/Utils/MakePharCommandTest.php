@@ -194,12 +194,14 @@ class MakePharCommandTest extends LogTestCase
 
         /** @var \Mockery\MockInterface $m */
         $m = Mockery::mock('overload:DgfipSI1\Application\Utils\DirectoryStasher')->makePartial();
+        $m->shouldReceive('setLogger')->once();
         $m->shouldReceive('stash')->withArgs(
             function ($src, $dst, $ex, $callBacks) {
-                $methods = array_map(static fn ($v) => [$v[0][1], $v[1]], $callBacks);
+                $methods = array_map(static fn ($v) => [$v['callable'][1], $v['args']], $callBacks);
                 $composer = $symlinks = false;
                 foreach ($methods as $m) {
-                    if ('composerRun' === $m[0] && implode(' ', $m[1]) === "install --working-dir ".$dst." --no-dev") {
+                    $composerOptions = "install --working-dir ".$dst." --no-dev";
+                    if ('composerRun' === $m[0] && implode(' ', $m[1][0]) === $composerOptions) {
                         $composer = true;
                     }
                     if ('resolveSymlinks' === $m[0]) {
