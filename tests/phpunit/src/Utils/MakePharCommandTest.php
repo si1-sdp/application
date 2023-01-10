@@ -411,22 +411,21 @@ class MakePharCommandTest extends LogTestCase
         $method->setAccessible(true);
 
         $entryPoint = $this->root->url().DIRECTORY_SEPARATOR.'testApp';
-        $pharFile = 'testApp.phar';
         $fullName = $this->root->url().DIRECTORY_SEPARATOR.'testApp.phar';
         $msg = '';
         try {
-            $method->invokeArgs($cmd, [$pharFile, $this->root->url(), $entryPoint, []]);
+            $method->invokeArgs($cmd, [$fullName, $this->root->url(), $entryPoint, []]);
         } catch (\Exception $e) {
             $msg = $e->getMessage();
         }
         if (false === $createPhar) {
             self::assertEquals("Phar file wasn't created", $msg);
         } else {
+            self::assertEquals("", $msg);
             $perms = substr(sprintf('%o', fileperms($fullName)), -4);
             self::assertEquals('0770', $perms);
-            self::assertEquals("", $msg);
         }
-        $this->assertNoticeInContextLog('Creating phar : {file}', ['name' => 'make-phar', 'file' => $pharFile]);
+        $this->assertNoticeInContextLog('Creating phar : {file}', ['name' => 'make-phar', 'file' => $fullName]);
         $this->assertLogEmpty();
     }
     /**

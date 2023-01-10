@@ -144,7 +144,7 @@ EOH
     /**
      * make phar
      *
-     * @param string        $pharFile
+     * @param string        $pharFile   should be an absolute path
      * @param string        $directory
      * @param string        $entryPoint
      * @param array<string> $excludes
@@ -155,8 +155,7 @@ EOH
     {
         $logCtx = ['name' => 'make-phar', 'file' => $pharFile];
         $this->getLogger()->notice("Creating phar : {file}", $logCtx);
-        $fullName = $directory.DIRECTORY_SEPARATOR.$pharFile;
-        $phar = $this->initPhar($fullName);
+        $phar = $this->initPhar($pharFile);
         if (null !== $phar) {
             // start buffering. Mandatory to modify stub to add shebang
             $phar->startBuffering();
@@ -171,10 +170,10 @@ EOH
             // plus - compressing it into gzip
             $phar->compressFiles(Phar::GZ);
             // Make the file executable
-            if (!file_exists($fullName)) {
+            if (!file_exists($pharFile)) {
                 throw new RuntimeException("Phar file wasn't created");
             }
-            chmod($fullName, 0770);
+            chmod($pharFile, 0770);
         }
     }
     /**
