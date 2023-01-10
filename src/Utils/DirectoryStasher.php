@@ -116,6 +116,7 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
         if (null === $directory) {
             throw new RuntimeException('No directory given, and destination directory not set');
         }
+        $directory = (string) realpath($directory);
         foreach ($this->find($directory) as $file) {
             if (is_link($file)) {
                 $linked = $this->filesystem->readlink($file, true);
