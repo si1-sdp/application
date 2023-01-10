@@ -202,7 +202,7 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             if (null !== $this->getConfiguredApplication()->getMappedOption($command, $optName)) {
                 $o = $this->getConfiguredApplication()->getMappedOption($command, $optName);
                 $definition->addOption(new InputOption($opt, $o->getOption()->getShortcut(), $o->getMode()));
-            } else {
+            } elseif ($defaultDefinition->hasOption($opt)) {
                 $definition->addOption($defaultDefinition->getOption($opt));
             }
         }
