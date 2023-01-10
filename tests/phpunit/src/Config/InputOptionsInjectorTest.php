@@ -6,6 +6,7 @@
 namespace DgfipSI1\ApplicationTests\Config;
 
 use Composer\Autoload\ClassLoader;
+use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\Command as ApplicationCommand;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\InputOptionsInjector;
@@ -21,7 +22,6 @@ use League\Container\Container;
 use Mockery;
 use Mockery\Mock;
 use ReflectionClass;
-use ReflectionMethod;
 use stdClass;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -131,11 +131,13 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector = $this->createInjector($argv, true);
 
         $event    = $this->createEvent($argv);
-
-        $injector->shouldReceive('manageGlobalOptions')->once()->with($event->getInput()); /** @phpstan-ignore-line */
-        /** @phpstan-ignore-next-line */
+        /** @var \Mockery\MockInterface $injector */
+        $injector->shouldReceive('buildDefaultlessInput')->once();
+        $injector->shouldReceive('manageGlobalOptions')->once()->with($event->getInput());
         $injector->shouldReceive('manageCommandOptions')->once()->with($event->getInput(), $event->getCommand());
-        $injector->shouldReceive('manageDefineOption')->once()->with($event);              /** @phpstan-ignore-line */
+        $injector->shouldReceive('manageDefineOption')->once()->with($event);
+
+        /** @var InputOptionsInjector $injector */
         $injector->handleCommandEvent($event);
         $this->assertNoMoreProdMessages();
     }
@@ -189,18 +191,18 @@ class InputOptionsInjectorTest extends LogTestCase
     {
         $argv     = ['./test', 'test'];
         $input    = new ArgvInput($argv);
+        /** @var \Mockery\MockInterface $injector */
         $injector = $this->createInjector($argv, true);
+        $opt = (new MappedOption('test-opt', OptionType::Boolean))->setCommand('hello-world');
+        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'hello-world');
+
 
         $command = new HelloWorldCommand();
+
+        /** @var InputOptionsSetter $injector */
         $injector->getContainer()->addShared('hello-world', $command);
-
-        $opt = (new MappedOption('test-opt', OptionType::Boolean))->setCommand('hello-world');
-
         $command->getDefinition()->addOption($opt->getOption());
         $injector->getConfiguredApplication()->addMappedOption($opt);
-
-        /** @phpstan-ignore-next-line */
-        $injector->shouldReceive('syncInputWithConfig')->once()->with($input, $opt, 'hello-world');
 
         $injector->manageCommandOptions($input, $command);                          /** @phpstan-ignore-line */
         $ctx = ['name' => 'manageCommand hello-world options'];
@@ -291,7 +293,7 @@ class InputOptionsInjectorTest extends LogTestCase
             'boolean' => [ 'bool'  , 'boolean'  , 'B'    , null   , true   , false      ],
             'Array-A' => [ 'arry'  , 'array'    , 'A'    , []     , [1, 2]  , [3, 4]      ],
             'ScalarS' => [ 'scal'  , 'scalar'   , 'S'    , ''     , 'foo'  , 'bar'      ],
-            'Argumnt' => [ 'agrt'  , 'argument' , true   , ''     , 'foo'  , 'bar'      ],
+            'Argumnt' => [ 'argt'  , 'argument' , true   , ''     , 'foo'  , 'bar'      ],
         ];
         $data = [];
         foreach ($variables as $iName => $item) {
@@ -336,6 +338,44 @@ class InputOptionsInjectorTest extends LogTestCase
     }
 
     /**
+     * @covers \DgfipSI1\Application\Config\InputOptionsInjector::buildDefaultlessInput
+     *
+     * @return void
+     */
+    public function testbuildDefaultlessInput()
+    {
+        // create injector
+        $injector = $this->createInjector();
+        $method = $this->class->getMethod('buildDefaultlessInput');
+        $method->setAccessible(true);
+        $result = $this->class->getProperty('defaultlessInput');
+        $result->setAccessible(true);
+        /** @var ApplicationInterface $app */
+        $app = $injector->getContainer()->get('application');
+
+        /** @var MappedOption $arg */
+        $arg = new MappedOption('test-arg', OptionType::Argument, default: 'arg-default');
+        $app->addMappedOption($arg);
+        $app->getDefinition()->addArgument($arg->getArgument());
+
+        /** @var MappedOption $option */
+        $option = new MappedOption('test-opt', OptionType::Scalar, default: 'opt-default');
+        $app->addMappedOption($option);
+        $app->getDefinition()->addOption($option->getOption());
+
+
+        //$input = new ArgvInput(['./test', 'command', 'test-arg-value', '--test-opt', 'test-value']);
+        $input = new ArgvInput(['./test', 'command', '--help', '--test-opt', 'test' ]);
+        InputOptionsSetter::safeBind($input, $app->getDefinition());
+
+        self::assertNull($result->getValue($injector));
+        $method->invokeArgs($injector, [$input, 'hello']);
+        /** @var ArgvInput $inputResult */
+        $inputResult = $result->getValue($injector);
+        self::assertEquals('test', $inputResult->getOption('test-opt'));
+        self::assertEquals(null, $inputResult->getArgument('test-arg'));
+    }
+    /**
      * test syncInputWithConfig
      *
      * @param string      $name
@@ -360,6 +400,8 @@ class InputOptionsInjectorTest extends LogTestCase
         $injector = $this->createInjector();
         $method = $this->class->getMethod('syncInputWithConfig');
         $method->setAccessible(true);
+        $bi = $this->class->getMethod('buildDefaultlessInput');
+        $bi->setAccessible(true);
         $definition = $injector->getConfiguredApplication()->getDefinition();
         //
         // CREATE CORRESPONDING MAPPED OPTION
@@ -377,6 +419,9 @@ class InputOptionsInjectorTest extends LogTestCase
         } else {
             $definition->addOption($option->getOption());
         }
+        /** @var ApplicationInterface $app */
+        $app = $injector->getContainer()->get('application');
+        $app->addMappedOption($option);
         //
         // SET CONFIG VALUE
         //
@@ -395,7 +440,7 @@ class InputOptionsInjectorTest extends LogTestCase
         $argv = $this->getCommandArgvFromValue($type, $name, $short, $optValue);
         $input = new ArgvInput($argv);
         $input->bind($definition);
-
+        $bi->invokeArgs($injector, [$input, 'hello']);
         //
         // CALL TESTED METHOD
         //

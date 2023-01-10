@@ -102,6 +102,18 @@ interface ApplicationInterface extends ConfigAwareInterface, ContainerAwareInter
     /**
      * Gets the InputDefinition related to this Application.
      */
+    /**
+     * Get mapped option for given command
+     *
+     * @param string|null $command
+     * @param string      $optName
+     *
+     * @return MappedOption|null
+     */
+    public function getMappedOption($command, $optName);
+    /**
+     * Gets the InputDefinition related to this Application.
+     */
     public function getDefinition(): InputDefinition;
     /**
      * gets the entrypoint

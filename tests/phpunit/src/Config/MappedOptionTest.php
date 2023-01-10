@@ -60,6 +60,7 @@ class MappedOptionTest extends LogTestCase
      *
      * @covers \DgfipSI1\Application\Config\MappedOption::__construct
      * @covers \DgfipSI1\Application\Config\MappedOption::getName
+     * @covers \DgfipSI1\Application\Config\MappedOption::getMode
      * @covers \DgfipSI1\Application\Config\MappedOption::getDefaultValue
      * @covers \DgfipSI1\Application\Config\MappedOption::getDescription
      * @covers \DgfipSI1\Application\Config\MappedOption::isArray
@@ -268,45 +269,6 @@ class MappedOptionTest extends LogTestCase
         self::assertNotEquals(OptionType::Argument->mode(), OptionType::Argument->mode(true));
     }
     /**
-     *  test constructor
-     *
-     * @covers \DgfipSI1\Application\Config\MappedOption::getDefaultFreeInputValue
-     *
-     * @return void
-     */
-    public function testGetDefaultFreeInputValue(): void
-    {
-        $opt1 = new MappedOption('test', OptionType::Scalar, 'this is a test option', 'S', 'foo');
-        $opt2 = new MappedOption('argument', OptionType::Argument, 'this is a test argument', null, 'argValue');
-        $definition = new InputDefinition([
-            new InputArgument('command', InputArgument::REQUIRED, 'The command name'),
-            $opt1->getOption(),
-            $opt2->getArgument(),
-        ]);
-
-        $input = new ArgvInput(['./test', 'command']);
-        InputOptionsSetter::safeBind($input, $definition);
-        self::assertEquals('foo', $input->getOption('test'));
-        self::assertEquals(null, $opt1->getDefaultFreeInputValue($input));
-        self::assertEquals('foo', $input->getOption('test'));    // check that input wase not broken
-
-        $input = new ArgvInput(['./test', 'command', '--test', 'bar']);
-        InputOptionsSetter::safeBind($input, $definition);
-        self::assertEquals('bar', $input->getOption('test'));
-        self::assertEquals('bar', $opt1->getDefaultFreeInputValue($input));
-
-        $input = new ArgvInput(['./test', 'command']);
-        InputOptionsSetter::safeBind($input, $definition);
-        self::assertEquals('argValue', $input->getArgument('argument'));
-        self::assertEquals(null, $opt2->getDefaultFreeInputValue($input));
-        self::assertEquals('argValue', $input->getArgument('argument'));// check that input wase not broken
-
-        $input = new ArgvInput(['./test', 'command', 'bar']);
-        InputOptionsSetter::safeBind($input, $definition);
-        self::assertEquals('bar', $input->getArgument('argument'));
-        self::assertEquals('bar', $opt2->getDefaultFreeInputValue($input));
-    }
-    /**
      * validate option object
      *
      * @param MappedOption $opt
@@ -376,6 +338,7 @@ class MappedOptionTest extends LogTestCase
                 self::assertEquals($required, $opt->getArgument()->isRequired());
                 break;
         }
+        self::assertEquals($type->mode(), $opt->getMode());
         self::assertEquals($isArray, $opt->isArray());
         self::assertEquals($isBool, $opt->isBool());
         self::assertEquals($isScalar, $opt->isScalar());

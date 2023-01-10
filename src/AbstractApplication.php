@@ -246,7 +246,7 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         $this->mappedOptions[$key][$opt->getName()] = $opt;
     }
     /**
-     * Get mapped option
+     * Get mapped options
      *
      * @param string|null $command
      *
@@ -262,6 +262,31 @@ abstract class AbstractApplication extends SymfoApp implements ApplicationInterf
         }
 
         return [];
+    }
+    /**
+     * Get mapped option
+     *
+     * @param string|null $command
+     * @param string      $optName
+     *
+     * @return MappedOption|null
+     */
+    public function getMappedOption($command, $optName)
+    {
+        if (null !== $command) {
+            if (array_key_exists($command, $this->mappedOptions) &&
+                array_key_exists($optName, $this->mappedOptions[$command])
+            ) {
+                return $this->mappedOptions[$command][$optName];
+            }
+        }
+        if (array_key_exists('__global__', $this->mappedOptions) &&
+            array_key_exists($optName, $this->mappedOptions['__global__'])
+        ) {
+            return $this->mappedOptions['__global__'][$optName];
+        }
+
+        return null;
     }
     /**
      * Discoverer classes

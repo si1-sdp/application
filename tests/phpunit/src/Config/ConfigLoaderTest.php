@@ -156,12 +156,13 @@ class ConfigLoaderTest extends LogTestCase
         $cmd = new Command('hello');
         $event = new ConsoleCommandEvent($cmd, new ArgvInput($argv), new NullOutput());
 
-        $loader->shouldReceive('configureSchemas')->once();                    /** @phpstan-ignore-line */
-        /** @phpstan-ignore-next-line */
+        /** @var \Mockery\MockInterface $loader */
+        $loader->shouldReceive('configureSchemas')->once();
         $loader->shouldReceive('loadConfigFromOptions')->once()->with($event)->andReturn(false);
-        $loader->shouldReceive('loadConfigFiles')->once();                     /** @phpstan-ignore-line */
-        $loader->shouldReceive('addConfigFromOptions')->once()->with($event);  /** @phpstan-ignore-line */
+        $loader->shouldReceive('loadConfigFiles')->once();
+        $loader->shouldReceive('addConfigFromOptions')->once()->with($event);
 
+        /** @var ConfigLoader $loader */
         $loader->loadConfiguration($event);
         /** @var ConfigHelper $config */
         $config = $loader->getConfig();

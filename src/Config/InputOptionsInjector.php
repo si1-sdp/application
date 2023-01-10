@@ -10,6 +10,10 @@ use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use DgfipSI1\Application\Command as appCommand;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputOption;
 
 /**
  * envent subscriber that loads all input options values into config
@@ -17,6 +21,9 @@ use DgfipSI1\Application\Command as appCommand;
 class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplicationInterface
 {
     use ConfiguredApplicationTrait;
+
+    /** @var InputInterface $defaultlessInput */
+    protected $defaultlessInput;
 
     /**
      * {@inheritdoc}
@@ -35,8 +42,13 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
      */
     public function handleCommandEvent(ConsoleCommandEvent $event)
     {
-        $this->manageGlobalOptions($event->getInput());
         $command = $event->getCommand();
+        $commandName = null;
+        if (null !== $command) {
+            $commandName = $command->getName();
+        }
+        $this->buildDefaultlessInput($event->getInput(), $commandName);
+        $this->manageGlobalOptions($event->getInput());
         if (null !== $command) {
             $this->manageCommandOptions($event->getInput(), $command);
         }
@@ -138,7 +150,11 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
         //
         // GET OPTION VALUE FROM COMMAND LINE
         //
-        $inputValue = $mappedOpt->getDefaultFreeInputValue($input);
+        if ($mappedOpt->isArgument()) {
+            $inputValue = $this->defaultlessInput->getArgument($mappedOpt->getArgument()->getName());
+        } else {
+            $inputValue = $this->defaultlessInput->getOption($mappedOpt->getOption()->getName());
+        }
         if ($mappedOpt->isArray() && [] === $inputValue) {
             $inputValue = null;
         }
@@ -165,6 +181,33 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             $this->getLogger()->debug("    => CONFIG->SET('{key}',  {input})", $logCtx);
             $this->getConfig()->set("$key", $inputValue);
         }
+    }
+    /**
+     * TODO : Test many configurations Several arguments and options
+     * Build an input definition that has no defaults parameters
+     * @param InputInterface $input
+     * @param string|null    $command
+     *
+     * @return void
+     */
+    protected function buildDefaultlessInput($input, $command)
+    {
+        $defaultDefinition = $this->getConfiguredApplication()->getDefinition();
+        $definition = new InputDefinition();
+        foreach (array_keys($input->getArguments()) as $arg) {
+            $definition->addArgument(new InputArgument($arg));
+        }
+        foreach (array_keys($input->getOptions()) as $opt) {
+            $optName = MappedOption::getConfName($opt);
+            if (null !== $this->getConfiguredApplication()->getMappedOption($command, $optName)) {
+                $o = $this->getConfiguredApplication()->getMappedOption($command, $optName);
+                $definition->addOption(new InputOption($opt, $o->getOption()->getShortcut(), $o->getMode()));
+            } else {
+                $definition->addOption($defaultDefinition->getOption($opt));
+            }
+        }
+        $this->defaultlessInput = clone($input);
+        InputOptionsSetter::safeBind($this->defaultlessInput, $definition);
     }
     /**
      * synchronizeInputOptionWithConfig

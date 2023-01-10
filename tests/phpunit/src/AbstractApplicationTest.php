@@ -460,6 +460,7 @@ class AbstractApplicationTest extends LogTestCase
      *
      * @covers \DgfipSI1\Application\AbstractApplication::addMappedOption
      * @covers \DgfipSI1\Application\AbstractApplication::getMappedOptions
+     * @covers \DgfipSI1\Application\AbstractApplication::getMappedOption
      *
      */
     public function testMappedOptions(): void
@@ -485,6 +486,14 @@ class AbstractApplicationTest extends LogTestCase
         self::assertArrayHasKey('test_global', $options);
         self::assertInstanceOf(MappedOption::class, $options['test_global']);
         self::assertEquals(1, count($options));
+
+        self::assertNotNull($app->getMappedOption('test_cmd', 'test_scalar'));
+        self::assertNotNull($app->getMappedOption('test_cmd', 'test_bool'));
+        self::assertNotNull($app->getMappedOption('test_cmd', 'test_global'));
+
+        self::assertNull($app->getMappedOption(null, 'test_scalar'));
+        self::assertNull($app->getMappedOption(null, 'test_bool'));
+        self::assertNotNull($app->getMappedOption(null, 'test_global'));
     }
     /**
      * @covers \DgfipSI1\Application\AbstractApplication::addDiscoveries
