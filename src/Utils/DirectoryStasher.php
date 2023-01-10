@@ -108,7 +108,7 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
      * Resolve intenal symlinks - FIXME : should be recursive (or symlinks sorted ?)
      * @param string|null $directory
      *
-     * @return void
+     * @return int
      */
     public function resolveSymlinks($directory = null)
     {
@@ -136,6 +136,8 @@ class DirectoryStasher implements ConfigAwareInterface, LoggerAwareInterface, Co
                 }
             }
         }
+
+        return 0;
     }
     /**
      * Undocumented function
