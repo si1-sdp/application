@@ -131,16 +131,16 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $notCmd = new HelloWorldSchema();
         $notCmd->setConfig($cmd->getConfig());
 
-        self::assertNull($cmd->getOptionValue('foo'));
-        self::assertNull($notCmd->getOptionValue('foo'));
+        self::assertNull($cmd->getOptionValue('foo-bar'));
+        self::assertNull($notCmd->getOptionValue('foo-bar'));
 
-        $cmd->getConfig()->set('options.foo', 'bar from global');
-        self::assertEquals('bar from global', $cmd->getOptionValue('foo'));
+        $cmd->getConfig()->set('options.foo_bar', 'bar from global');
+        self::assertEquals('bar from global', $cmd->getOptionValue('foo-bar'));
 
-        $cmd->getConfig()->set('commands.hello_world.options.foo', 'bar from hello');
-        self::assertEquals('bar from hello', $cmd->getOptionValue('foo'));
+        $cmd->getConfig()->set('commands.hello_world.options.foo_bar', 'bar from hello');
+        self::assertEquals('bar from hello', $cmd->getOptionValue('foo-bar'));
 
-        self::assertEquals('bar from global', $notCmd->getOptionValue('foo'));
+        self::assertEquals('bar from global', $notCmd->getOptionValue('foo-bar'));
     }
 
     /**
