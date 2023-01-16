@@ -8,7 +8,6 @@ namespace DgfipSI1\ApplicationTests\Config;
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\ApplicationInterface;
 use DgfipSI1\Application\Command as ApplicationCommand;
-use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\InputOptionsInjector;
 use DgfipSI1\Application\Config\InputOptionsSetter;
 use DgfipSI1\Application\Config\MappedOption;
@@ -284,6 +283,49 @@ class InputOptionsInjectorTest extends LogTestCase
     }
 
     /**
+     * @covers \DgfipSI1\Application\Config\InputOptionsInjector::buildDefaultlessInput
+     *
+     * @return void
+     */
+    public function testbuildDefaultlessInput()
+    {
+        // create injector
+        $injector = $this->createInjector();
+        $method = $this->class->getMethod('buildDefaultlessInput');
+        $method->setAccessible(true);
+        $result = $this->class->getProperty('defaultlessInput');
+        $result->setAccessible(true);
+        /** @var ApplicationInterface $app */
+        $app = $injector->getContainer()->get('application');
+
+        /** @var MappedOption $arg */
+        $arg = new MappedOption('test-arg', OptionType::Argument, default: 'arg-default');
+        $app->addMappedOption($arg);
+        $app->getDefinition()->addArgument($arg->getArgument());
+
+        /** @var MappedOption $option */
+        $option = new MappedOption('test-opt', OptionType::Scalar, default: 'opt-default');
+        $app->addMappedOption($option);
+        $app->getDefinition()->addOption($option->getOption());
+
+        $input = new ArgvInput(['./test', 'command', '--help', '--test-opt', 'test' ]);
+        InputOptionsSetter::safeBind($input, $app->getDefinition());
+
+        self::assertNull($result->getValue($injector));
+        $method->invokeArgs($injector, [$input, 'hello']);
+        /** @var ArgvInput $inputResult */
+        $inputResult = $result->getValue($injector);
+        self::assertEquals('test', $inputResult->getOption('test-opt'));
+        self::assertEquals(null, $inputResult->getArgument('test-arg'));
+
+        $input = new ArgvInput(['./test', 'command', '--foo']);
+        InputOptionsSetter::safeBind($input, $app->getDefinition());
+        $method->invokeArgs($injector, [$input, 'hello']);
+        //$this->showInterpolatedLogs();
+        $this->assertDebugInContextLog('The "--foo" option does not exist.', ['name' => 'buildDefaultlessInput']);
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public function dataSyncInput(): array
@@ -337,44 +379,7 @@ class InputOptionsInjectorTest extends LogTestCase
         return $data;
     }
 
-    /**
-     * @covers \DgfipSI1\Application\Config\InputOptionsInjector::buildDefaultlessInput
-     *
-     * @return void
-     */
-    public function testbuildDefaultlessInput()
-    {
-        // create injector
-        $injector = $this->createInjector();
-        $method = $this->class->getMethod('buildDefaultlessInput');
-        $method->setAccessible(true);
-        $result = $this->class->getProperty('defaultlessInput');
-        $result->setAccessible(true);
-        /** @var ApplicationInterface $app */
-        $app = $injector->getContainer()->get('application');
 
-        /** @var MappedOption $arg */
-        $arg = new MappedOption('test-arg', OptionType::Argument, default: 'arg-default');
-        $app->addMappedOption($arg);
-        $app->getDefinition()->addArgument($arg->getArgument());
-
-        /** @var MappedOption $option */
-        $option = new MappedOption('test-opt', OptionType::Scalar, default: 'opt-default');
-        $app->addMappedOption($option);
-        $app->getDefinition()->addOption($option->getOption());
-
-
-        //$input = new ArgvInput(['./test', 'command', 'test-arg-value', '--test-opt', 'test-value']);
-        $input = new ArgvInput(['./test', 'command', '--help', '--test-opt', 'test' ]);
-        InputOptionsSetter::safeBind($input, $app->getDefinition());
-
-        self::assertNull($result->getValue($injector));
-        $method->invokeArgs($injector, [$input, 'hello']);
-        /** @var ArgvInput $inputResult */
-        $inputResult = $result->getValue($injector);
-        self::assertEquals('test', $inputResult->getOption('test-opt'));
-        self::assertEquals(null, $inputResult->getArgument('test-arg'));
-    }
     /**
      * test syncInputWithConfig
      *
@@ -491,7 +496,8 @@ class InputOptionsInjectorTest extends LogTestCase
         }
         $this->assertDebugInContextLog('INPUT', $ctx);
     }
-    /**
+
+     /**
      * test manageDefineOptions
      *
      * @covers \DgfipSI1\Application\Config\InputOptionsInjector::manageDefineOption

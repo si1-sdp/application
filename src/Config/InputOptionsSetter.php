@@ -189,8 +189,10 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
             /** @var array<ConfiguredApplicationInterface> $confServices */
             $confServices = $this->getContainer()->get(AbstractApplication::GLOBAL_CONFIG_TAG);
             foreach ($confServices as $configurator) {
-                foreach ($configurator->getConfigOptions() as $opt) {
-                    $this->getConfiguredApplication()->addMappedOption($opt);
+                if (method_exists($configurator, 'getConfigOptions')) {  /** @phpstan-ignore-line  */
+                    foreach ($configurator->getConfigOptions() as $opt) {
+                        $this->getConfiguredApplication()->addMappedOption($opt);
+                    }
                 }
             }
         }
@@ -205,8 +207,8 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
      */
     private function addOption($definition, $mappedOption, $logCtx)
     {
-        $logCtx['option'] = $mappedOption->getName();
         if ($mappedOption->isArgument()) {
+            $logCtx['option'] = $mappedOption->getArgument()->getName();
             $input = $mappedOption->getArgument();
             if ($definition->hasArgument($input->getName())) {
                 $this->getLogger()->warning("{context} argument {option} already exists", $logCtx);
@@ -215,6 +217,7 @@ class InputOptionsSetter implements ConfiguredApplicationInterface
                 $definition->addArgument($input);
             }
         } else {
+            $logCtx['option'] = $mappedOption->getOption()->getName();
             $input = $mappedOption->getOption();
             if ($definition->hasOption($input->getName())) {
                 $this->getLogger()->warning("{context} option {option} already exists", $logCtx);

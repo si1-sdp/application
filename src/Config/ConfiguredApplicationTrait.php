@@ -56,7 +56,11 @@ trait ConfiguredApplicationTrait
             }
             if (null !== $node) {
                 $node->info($mappedOption->getDescription());
-                if (null !== $mappedOption->getDefaultValue() && !$mappedOption->isArray()) {
+                if ($mappedOption->isArray()) {
+                    /** @var ArrayNodeDefinition $node */
+                    $node->scalarPrototype();
+                    $node->defaultValue($mappedOption->getDefaultValue());
+                } elseif (null !== $mappedOption->getDefaultValue()) {
                     $node->defaultValue($mappedOption->getDefaultValue());
                 }
             }

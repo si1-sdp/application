@@ -26,6 +26,7 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  * @uses DgfipSI1\Application\Config\ConfiguredApplicationTrait
  * @uses DgfipSI1\Application\Config\MappedOption
  * @uses DgfipSI1\Application\Config\OptionType
+ * @uses DgfipSI1\Application\Contracts\ConfigAwareTrait
  * @uses DgfipSI1\Application\Utils\ApplicationLogger
  * @uses DgfipSI1\Application\Utils\ClassDiscoverer
  * @uses DgfipSI1\Application\Utils\MakePharCommand
@@ -96,7 +97,11 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         bool:                 false
 
         # An array there
-        array:                []
+        array:
+
+            # Defaults:
+            - A
+            - B
 
         # And a scalar
         scalar:               ~
@@ -110,7 +115,7 @@ class ConfiguredApplicationTraitTest extends LogTestCase
         $cmd->setContainer(new Container());
         $cmd->getContainer()->addShared('application', $app);
         $app->addMappedOption(new MappedOption('bool', OptionType::Boolean, 'A boolean value here'));
-        $app->addMappedOption(new MappedOption('array', OptionType::Array, 'An array there'));
+        $app->addMappedOption(new MappedOption('array', OptionType::Array, 'An array there', default: ['A', 'B']));
         $app->addMappedOption(new MappedOption('scalar', OptionType::Scalar, 'And a scalar'));
         $app->addMappedOption(new MappedOption('argument', OptionType::Argument, 'argument', default: 'foo'));
 

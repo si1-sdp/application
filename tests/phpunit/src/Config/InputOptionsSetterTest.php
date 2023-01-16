@@ -264,19 +264,20 @@ class InputOptionsSetterTest extends LogTestCase
         $option = new MappedOption('test-opt', OptionType::Boolean);
         $ctx = ['context' => 'testing'];
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertDebugInLog('testing option test_opt added', interpolate:true);
+        //$this->showInterpolatedLogs();
+        $this->assertDebugInLog('testing option test-opt added', interpolate:true);
         $this->assertLogEmpty();
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertWarningInLog('testing option test_opt already exists', interpolate:true);
+        $this->assertWarningInLog('testing option test-opt already exists', interpolate:true);
         $this->assertLogEmpty();
         // $option = new InputArgument('test-arg');
         $option = new MappedOption('test-arg', OptionType::Argument);
         $ctx = ['context' => 'testing'];
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertDebugInLog('testing argument test_arg added', interpolate:true);
+        $this->assertDebugInLog('testing argument test-arg added', interpolate:true);
         $this->assertLogEmpty();
         $method->invokeArgs($setter, [$def, $option, $ctx]);
-        $this->assertWarningInLog('testing argument test_arg already exists', interpolate:true);
+        $this->assertWarningInLog('testing argument test-arg already exists', interpolate:true);
         $this->assertLogEmpty();
     }
     /**

@@ -8,6 +8,8 @@ use Composer\Autoload\ClassLoader;
 use Consolidation\Config\Util\ConfigOverlay;
 use DgfipSI1\Application\ApplicationSchema as CONF;
 use DgfipSI1\Application\Config\BaseSchema;
+use DgfipSI1\Application\Config\ConfiguredApplicationInterface;
+use DgfipSI1\Application\Config\ConfiguredApplicationTrait;
 use DgfipSI1\Application\Config\MappedOption;
 use DgfipSI1\Application\Contracts\ConfigAwareTrait;
 use DgfipSI1\Application\Contracts\LoggerAwareTrait;
@@ -28,11 +30,9 @@ use Symfony\Component\Console\Output\Output;
 /**
  * class Application
  */
-abstract class AbstractApplication extends SymfoApp implements ApplicationInterface
+abstract class AbstractApplication extends SymfoApp implements ApplicationInterface, ConfiguredApplicationInterface
 {
-    use ConfigAwareTrait;
-    use ContainerAwareTrait;
-    use LoggerAwareTrait;
+    use ConfiguredApplicationTrait;
 
     public const DEFAULT_MAP_ROOT           = 'options';
     protected const DEFAULT_APP_CONFIG_FILE = '.application-config.yml';

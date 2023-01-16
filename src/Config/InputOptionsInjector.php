@@ -207,7 +207,11 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
             }
         }
         $this->defaultlessInput = clone($input);
-        InputOptionsSetter::safeBind($this->defaultlessInput, $definition);
+        try {
+            $this->defaultlessInput->bind($definition);
+        } catch (\Exception $e) {
+            $this->getLogger()->debug($e->getMessage(), ['name' => 'buildDefaultlessInput']);
+        }
     }
     /**
      * synchronizeInputOptionWithConfig

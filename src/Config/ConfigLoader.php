@@ -115,7 +115,9 @@ class ConfigLoader implements EventSubscriberInterface, ConfiguredApplicationInt
             /** @var ConfigHelper $config */
             $config = $this->getConfig();
             /** @var ConfigurationInterface $configurator */
-            $config->addSchema($configurator);
+            if (method_exists($configurator, 'getConfigTreeBuilder')) {   /** @phpstan-ignore-line  */
+                $config->addSchema($configurator);
+            }
         }
     }
     /**

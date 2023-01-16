@@ -36,19 +36,8 @@ class HelloWorldCommand extends Command implements ApplicationAwareInterface
     public function getConfigOptions()
     {
         $opts = [];
-        // $opt = new InputOption('yell',   null, InputOption::VALUE_NEGATABLE, 'Should I yell while greeting?');
-        // $opts[] = new MappedOption($opt, self::CONFIG_YELL);
-        // $opt = new InputOption('formal', null, InputOption::VALUE_NONE, 'Should I be more formal?');
-        // $opts[] = new MappedOption($opt, self::CONFIG_FORMAL);
         return $opts;
     }
-    // protected function configure(): void
-    // {
-    //     /** options are automatically added by getConfigOptions function */
-    //     $this
-    //         ->addArgument('who', description: 'Who should we say hello to.', default: 'world')
-    //         ->setHelp('This command allows you to say hello...');
-    // }
      /**
      * @inheritDoc
      */
