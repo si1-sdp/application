@@ -254,8 +254,11 @@ class ClassDiscoverer implements LoggerAwareInterface, ContainerAwareInterface
      */
     protected function classMatchesFilters($class, $dependencies, $excludeDeps)
     {
-        // exclusions work with logical OR : anny exclusion filters class out.
+        // exclusions work with logical OR : any exclusion filters class out.
         foreach ($excludeDeps as $dep) {
+            if ($class->getName() === $dep->getName()) {
+                return false;
+            }
             if ($this->dependsOn($class, $dep)) {
                 return false;
             }

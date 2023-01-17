@@ -357,6 +357,15 @@ class ClassDiscovererTest extends LogTestCase
         $this->assertWarningInLog('Class "foo" does not exist');
         $this->assertDebugInLog('Keeping '.TestBaseClass::class, true);
         $this->assertLogEmpty();
+
+        // test7 - Filter Out on specific class  */
+        $refBase = new ReflectionClass(TestBaseClass::class);
+        $classes = $filterMethod->invokeArgs($disc, [ $refClasses, [], [$refBase]]);
+        foreach ($refClasses as $ref) {
+            $this->assertDebugInLog('Applying Filters to '.$ref, true);
+        }
+        $this->assertDebugInLog('Keeping '.TestRoboClass::class, true);
+        $this->assertLogEmpty();
     }
     /**
      *  test registerClasses
