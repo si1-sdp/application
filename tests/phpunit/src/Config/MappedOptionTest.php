@@ -43,13 +43,25 @@ class MappedOptionTest extends LogTestCase
             'scalar   ' => [ 'opt_s', 'scalar'  , null , null      , false , null , null                         ],
             'scalar-S ' => [ 'opt-s', 'scalar'  , 'S'  , '1'       , true  , null , null                         ],
             'boolean  ' => [ 'opt.b', 'boolean' , null , false     , false , null , null                         ],
-            'boolean-b' => [ 'opt-b', 'boolean' , 'B'  , true      , true  , null , null                         ],
-            'boolean_b' => [ 'opt-b', 'boolean' , 'B'  , false     , true  , null , null                         ],
-            'argument ' => [ 'arg'  , 'argument', null , null      , false , null , null                         ],
-            'arg-a    ' => [ 'arg-a', 'argument', null , ['foo']   , true  , true , 'Cannot set a default value' ],
-            'arg_a    ' => [ 'arg_a', 'argument', null , ['foo']   , true , false , null                         ],
-            'badType  ' => [ 'error', 'error'   , null , ['foo']   , true , false , 'Unknown option type'        ],
-            'noType   ' => [ 'error', null      , null , null      , true , false , 'Missing option type'        ],
+            'boolean-t' => [ 'opt-b', 'boolean' , 'B'  , true      , true  , null , null                         ],
+            'boolean_f' => [ 'opt-b', 'boolean' , 'B'  , false     , true  , null , null                         ],
+            // Simple argument with no default
+            'arg      ' => [ 'arg'  , 'argument', null , null      , false , null , null                         ],
+            // Simple argument : required is true, so setting default should trigger an error
+            'arg-err  ' => [ 'arg-a', 'argument', null , 'foo'     , true  , true , 'Cannot set a default value' ],
+            // Simple argument, not required with a default value
+            'arg-foo  ' => [ 'arg_a', 'argument', null , 'foo'     , true  , false , null                         ],
+            // Simple argument array with no default
+            'argarr   ' => [ 'arg'  , 'arg-array', null , []       , false , null , null                         ],
+            // Simple argument : required is true, so setting default should trigger an error
+            'argarr-err' => [ 'arg-a', 'arg-array', null , ['A', 'B'], true  , true , 'Cannot set a default value' ],
+            // Simple argument, not required with a default value
+            'argarr-AB' => [ 'arg_a', 'arg-array', null , ['A', 'B'], true  , false , null                         ],
+            //
+            // Errors
+            //
+            'badType  ' => [ 'error', 'error'   , null , 'foo'     , true  , false , 'Unknown option type'        ],
+            'noType   ' => [ 'error', null      , null , null      , true  , false , 'Missing option type'        ],
             'bad-short' => [ 'error', 'scalar'  , 'AA' , null      , false , null , null                         ],
 
         ];
@@ -83,13 +95,8 @@ class MappedOptionTest extends LogTestCase
     {
         $option = null;
         $msg = '';
-        if (null === $optType) {
-            self::assertTrue(true);
-
-            return;   // bad type errors not tested here as we use enum in constructor
-        }
         try {
-            $type = OptionType::from($optType);
+            $type = OptionType::from((string) $optType);
         } catch (\ValueError $e) {
             self::assertTrue(true);
 
@@ -336,6 +343,13 @@ class MappedOptionTest extends LogTestCase
             case OptionType::Argument:
                 $isArgument = true;
                 self::assertEquals($required, $opt->getArgument()->isRequired());
+                self::assertFalse($opt->getArgument()->isArray());
+                break;
+            case OptionType::ArgArray:
+                $isArray = true;
+                $isArgument = true;
+                self::assertEquals($required, $opt->getArgument()->isRequired());
+                self::assertTrue($opt->getArgument()->isArray());
                 break;
         }
         self::assertEquals($type->mode(), $opt->getMode());

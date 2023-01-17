@@ -152,6 +152,7 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
         //
         if ($mappedOpt->isArgument()) {
             $inputValue = $this->defaultlessInput->getArgument($mappedOpt->getArgument()->getName());
+//print "INPUT VALUE FOR ARG ".  $mappedOpt->getName()." => $inputValue\n";
         } else {
             $inputValue = $this->defaultlessInput->getOption($mappedOpt->getOption()->getName());
         }
@@ -195,12 +196,18 @@ class InputOptionsInjector implements EventSubscriberInterface, ConfiguredApplic
         $defaultDefinition = $this->getConfiguredApplication()->getDefinition();
         $definition = new InputDefinition();
         foreach (array_keys($input->getArguments()) as $arg) {
-            $definition->addArgument(new InputArgument($arg));
+            $optName = MappedOption::getConfName($arg);
+            $o = $this->getConfiguredApplication()->getMappedOption($command, $optName);
+            if (null !== $o) {
+                $definition->addArgument(new InputArgument($arg, $o->getMode()));
+            } else {
+                $definition->addArgument(new InputArgument($arg));
+            }
         }
         foreach (array_keys($input->getOptions()) as $opt) {
             $optName = MappedOption::getConfName($opt);
-            if (null !== $this->getConfiguredApplication()->getMappedOption($command, $optName)) {
-                $o = $this->getConfiguredApplication()->getMappedOption($command, $optName);
+            $o = $this->getConfiguredApplication()->getMappedOption($command, $optName);
+            if (null !== $o) {
                 $definition->addOption(new InputOption($opt, $o->getOption()->getShortcut(), $o->getMode()));
             } elseif ($defaultDefinition->hasOption($opt)) {
                 $definition->addOption($defaultDefinition->getOption($opt));

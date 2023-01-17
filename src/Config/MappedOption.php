@@ -60,13 +60,15 @@ class MappedOption
         if (null === $default) {
             if (OptionType::Boolean === $type) {
                 $default = false;
-            } elseif (OptionType::Array === $type) {
+            } elseif (OptionType::Array === $type || OptionType::ArgArray === $type) {
                 $default = [];
             }
         }
         $this->defaultValue = $default;
         $mode = $type->mode($required);
-        if (OptionType::Argument !== $type) {
+        if (OptionType::Argument === $type || OptionType::ArgArray === $type) {
+            $this->input = new InputArgument($ioName, $mode, $description, $default);
+        } else {
             if (OptionType::Boolean === $type) {
                 if (true === $default) {
                     $comment = " <comment>[default : true, use --no-$ioName to set to false]</comment>";
@@ -77,8 +79,6 @@ class MappedOption
                 $default = null;
             }
             $this->input = new InputOption($ioName, $optShort, $mode, $description, $default);
-        } else {
-            $this->input = new InputArgument($ioName, $mode, $description, $default);
         }
     }
 
@@ -210,7 +210,7 @@ class MappedOption
     */
     public function isArray(): bool
     {
-        return (OptionType::Array === $this->type);
+        return (OptionType::Array === $this->type  || OptionType::ArgArray === $this->type);
     }
     /**  isScalar
      * @return bool
@@ -224,7 +224,7 @@ class MappedOption
     */
     public function isArgument(): bool
     {
-        return (OptionType::Argument === $this->type);
+        return (OptionType::Argument === $this->type || OptionType::ArgArray === $this->type );
     }
     /**
      * get configHelper compatible option name

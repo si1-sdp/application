@@ -16,6 +16,7 @@ enum OptionType: string
     case Scalar   = 'scalar';
     case Array    = 'array';
     case Argument = 'argument';
+    case ArgArray = 'arg-array';
 
     /**
      * translate option type into symfony InputOption or InputArgument modes
@@ -29,7 +30,9 @@ enum OptionType: string
             OptionType::Boolean   => InputOption::VALUE_NONE|InputOption::VALUE_NEGATABLE,
             OptionType::Scalar    => InputOption::VALUE_REQUIRED,
             OptionType::Array     => InputOption::VALUE_IS_ARRAY|InputOption::VALUE_REQUIRED,
-            OptionType::Argument  => (true === $required ? InputArgument::REQUIRED : InputArgument::OPTIONAL),
+            OptionType::Argument  => true === $required ? InputArgument::REQUIRED : InputArgument::OPTIONAL,
+            OptionType::ArgArray  => (true === $required ? InputArgument::REQUIRED : InputArgument::OPTIONAL)|
+                                                           InputArgument::IS_ARRAY,
         };
     }
 }
