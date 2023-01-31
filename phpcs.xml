@@ -18,6 +18,7 @@
   <!-- Specify folders. -->
   <file>src</file>
   <file>tests/phpunit/src</file>
+  <file>tests/phpunit/src_extra</file>
   <exclude-pattern>tests/results*</exclude-pattern>
 </ruleset>
 

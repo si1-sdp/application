@@ -56,7 +56,8 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "DgfipSI1\\ApplicationTests\\": "tests/phpunit/src"
+      "DgfipSI1\\ApplicationTests\\": "tests/phpunit/src",
+      "DgfipSI1\\ExtraTests\\": "tests/phpunit/src_extra"
     }
   },
   "config": {
@@ -73,12 +74,12 @@
     "c": "rm -r tests/tmp/*/* &> /dev/null || true",
     "coverage": "firefox $(pwd)/tests/results/html-coverage/index.html",
     "infection": "infection --threads=max && firefox $(pwd)/tests/results/infection.html",
-    "lint": "parallel-lint --no-progress bin/composer-stage src tests",
+    "lint": "parallel-lint --no-progress src tests",
     "phpcbf": "phpcbf",
     "phpcs": "vendor/bin/phpcs --report=junit",
     "phpmetrics": "phpmetrics --junit=tests/results/tests-phpunit.xml --report-html=tests/results/phpmetrics src && firefox $(pwd)/tests/results/phpmetrics/index.html",
     "phpstan": "php -d memory_limit=256M vendor/bin/phpstan analyse --no-progress --error-format=junit",
-    "phpunit": "php -d memory_limit=1G vendor/bin/phpunit --log-junit tests/results/phpunit.xml",
+    "phpunit": "php -d memory_limit=1G vendor/bin/phpunit --testsuite default --log-junit tests/results/phpunit.xml",
     "security": "@composer update --dry-run roave/security-advisories",
     "static": "grumphp run --testsuite=static",
     "test": "grumphp run --testsuite=test"

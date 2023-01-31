@@ -3,7 +3,7 @@
  * This file is part of dgfip-si1/application.
  *
  */
-namespace DgfipSI1\ApplicationTests\Config;
+namespace DgfipSI1\ExtraTests;
 
 use Composer\Autoload\ClassLoader;
 use DgfipSI1\Application\Command;

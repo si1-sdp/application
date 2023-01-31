@@ -22,6 +22,7 @@ grumphp:
             whitelist_patterns:
                 - /^src/
                 - /^tests\/phpunit\/src/
+                - /^tests\/phpunit\/src_extra/
 
         phplint:
             ignore_patterns:
@@ -30,7 +31,13 @@ grumphp:
                 - vendor
         phpstan:
             use_grumphp_paths: false
-        phpunit: ~
+        phpunit:
+            config_file: ~
+            testsuite: default
+            group: []
+            exclude_group: []
+            always_execute: true
+            order: null
         securitychecker_roave: ~
         xmllint:
             ignore_patterns:

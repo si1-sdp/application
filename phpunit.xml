@@ -17,6 +17,10 @@
         <testsuite name="default">
             <directory>tests/phpunit/src</directory>
         </testsuite>
+        <testsuite name="extra">
+            <directory>tests/phpunit/src_extra</directory>
+        </testsuite>
+
     </testsuites>
 
     <coverage cacheDirectory="tests/tmp/.phpunit.cache/code-coverage"
